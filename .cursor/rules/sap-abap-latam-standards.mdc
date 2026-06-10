@@ -1,0 +1,54 @@
+---
+description: Estándar ABAP LATAM S/4HANA v1.0 — aplicar a todo código ABAP del clonador SAP
+globs: "**/*.{abap,asabp,txt,md}"
+alwaysApply: true
+---
+
+# Estándar ABAP LATAM (SAP S/4 v1.0)
+
+Referencia completa: `specs/activos/sap-abap-estandar-latam.md`  
+Fuente oficial: `Estándar de Desarrollos SAP S_4 v1.0_17_08_2024.pdf` (Grupo LATAM Airlines)
+
+## Nomenclatura obligatoria
+
+- Objetos Z: `Z<Frente><Modulo><Tipo>_<NNN>` — HR clonador → frente `H`, módulo `HR`, tipo `D` (desarrollo) → ej. `ZHHRD_001`
+- Includes: `_TOP`, `_SEL`, `_CLA`, `_F00`–`_F99`
+- Transacciones: `Z<Frente><Modulo>T_<NNN>` → ej. `ZHHRT_001`
+- Tablas/estructuras: `ZHR_<SUFIJO>`; data elements `ZDE_*`; dominios `ZDO_*`
+- Variables: `g_`/`l_`, tablas `gt_`/`lt_`, work areas `gwa_`/`lwa_`, constantes `gc_`/`lc_`, objetos `go_`/`lo_`, clases `gcl_`/`lcl_`
+- Selection screen: `P_<campo>`, `S_<campo>`
+
+## Reglas de código (nunca violar)
+
+1. Sin textos hardcode — message class / text elements / TEXT-xxx
+2. Sin `SELECT *` — campos explícitos siempre
+3. Sin UPDATE/INSERT/DELETE en tablas estándar — BAPIs o HR_INFOTYPE_OPERATION
+4. Tablas Z: ENQUEUE/DEQUEUE + manejo locks + UoW
+5. `AUTHORITY-CHECK` al inicio; validar SY-SUBRC inmediatamente; fallo → LEAVE PROGRAM
+6. TRY/CATCH para runtime errors; validar SY-SUBRC tras operaciones críticas
+7. Pretty Printer LATAM: sangría, keywords MAYÚSCULAS, un statement por línea
+8. Cabecera autodocumentada en español + histórico @NNN
+9. Traducciones ES / EN / PT en textos UI
+10. Sin breakpoints en código transportable
+11. Code Inspector (SCI) antes de transporte
+
+## S/4HANA / performance
+
+- Push-down HANA; evitar SELECT anidados y MOVE-CORRESPONDING
+- Evaluar CDS (≥3 tablas, ≥15 campos, alto volumen) y AMDP (procesos repetitivos)
+- Preferir INSERT INTO TABLE, LINE_EXISTS, READ TABLE, LOOP AT WHERE
+- ABAP_BOOL / ABAP_TRUE / ABAP_FALSE / XSDBOOL para booleanos
+
+## ALV y utilidades
+
+- ALV OO: CL_GUI_CUSTOM_CONTAINER; batch → CL_GUI_DOCKING_CONTAINER si offline
+- Correo: CL_BCS; archivos Unix: CATCH CX_SY_FILE_*
+- Jobs fondo: BP_START_DATE_EDITOR + control anti-ejecución paralela
+
+## Proyecto clonador empleados
+
+Ajustar nombres de la spec (`ZHR_CLN_*`, `ZHR_EMPLOYEE_CLONER`) al estándar LATAM:
+- Programa principal → `ZHHRD_001` (o correlativo acordado)
+- Clases → `ZCL_HR_CLN_*` (prefijo Z + descriptivo)
+- Tablas config → `ZHR_CLN_*` ✓
+- BAdI → `ZIF_HR_CLN_BADI` / `ZCL_HR_CLN_BADI_*`
