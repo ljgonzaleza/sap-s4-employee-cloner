@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<abapGit version="v1.0.0" serializer="LCL_OBJECT_INTF" serializer_version="v1.0.0">
+ <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
+  <asx:values>
+   <VSEOINTERF>
+    <CLSNAME>ZIF_HR_CLN_BADI</CLSNAME>
+    <LANGU>E</LANGU>
+    <DESCRIPT>BAdI Extensibilidad Clonador Empleados</DESCRIPT>
+    <EXPOSURE>2</EXPOSURE>
+    <STATE>1</STATE>
+    <UNDFLAG>X</UNDFLAG>
+   </VSEOINTERF>
+   <VSEOMETH>
+    <CLSNAME>ZIF_HR_CLN_BADI</CLSNAME>
+    <CMPNAME>ADJUST_SOURCE_BEFORE_COPY</CMPNAME>
+    <DESCRIPT>Modificar registro origen antes de copiar</DESCRIPT>
+    <EXPOSURE>2</EXPOSURE>
+    <MTDTYPE>0</MTDTYPE>
+    <MTDPUBL>ADJUST_SOURCE_BEFORE_COPY</MTDPUBL>
+   </VSEOMETH>
+   <VSEOMETH>
+    <CLSNAME>ZIF_HR_CLN_BADI</CLSNAME>
+    <CMPNAME>ADJUST_TARGET_BEFORE_SAVE</CMPNAME>
+    <DESCRIPT>Modificar registro destino antes de grabar</DESCRIPT>
+    <EXPOSURE>2</EXPOSURE>
+    <MTDTYPE>0</MTDTYPE>
+    <MTDPUBL>ADJUST_TARGET_BEFORE_SAVE</MTDPUBL>
+   </VSEOMETH>
+   <VSEOMETH>
+    <CLSNAME>ZIF_HR_CLN_BADI</CLSNAME>
+    <CMPNAME>SKIP_INFOTYPE</CMPNAME>
+    <DESCRIPT>Lógica custom para omitir infotipo</DESCRIPT>
+    <EXPOSURE>2</EXPOSURE>
+    <MTDTYPE>0</MTDTYPE>
+    <MTDPUBL>SKIP_INFOTYPE</MTDPUBL>
+   </VSEOMETH>
+   <VSEOMETH>
+    <CLSNAME>ZIF_HR_CLN_BADI</CLSNAME>
+    <CMPNAME>AFTER_INFOTYPE_COPY</CMPNAME>
+    <DESCRIPT>Post-proceso por infotipo</DESCRIPT>
+    <EXPOSURE>2</EXPOSURE>
+    <MTDTYPE>0</MTDTYPE>
+    <MTDPUBL>AFTER_INFOTYPE_COPY</MTDPUBL>
+   </VSEOMETH>
+   <VSEOMETH>
+    <CLSNAME>ZIF_HR_CLN_BADI</CLSNAME>
+    <CMPNAME>AFTER_CLONE_COMPLETE</CMPNAME>
+    <DESCRIPT>Notificaciones, workflow, etc.</DESCRIPT>
+    <EXPOSURE>2</EXPOSURE>
+    <MTDTYPE>0</MTDTYPE>
+    <MTDPUBL>AFTER_CLONE_COMPLETE</MTDPUBL>
+   </VSEOMETH>
+  </asx:values>
+ </asx:abap>
+</abapGit>

@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<abapGit version="v1.0.0" serializer="LCL_OBJECT_MSAG" serializer_version="v1.0.0">
+ <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
+  <asx:values>
+   <T100A>
+    <ARBGB>ZHR_CLN</ARBGB>
+    <MASTERLANG>E</MASTERLANG>
+    <STEXT>Message Class Clonador HR</STEXT>
+   </T100A>
+   <T100>
+    <T100>
+     <ARBGB>ZHR_CLN</ARBGB>
+     <MSGNR>000</MSGNR>
+     <TEXT>&amp;1&amp;2&amp;3&amp;4</TEXT>
+    </T100>
+    <T100>
+     <ARBGB>ZHR_CLN</ARBGB>
+     <MSGNR>001</MSGNR>
+     <TEXT>Clonación completada: &amp;1 empleados, &amp;2 OK, &amp;3 errores</TEXT>
+    </T100>
+    <T100>
+     <ARBGB>ZHR_CLN</ARBGB>
+     <MSGNR>002</MSGNR>
+     <TEXT>Advertencia en clonación: &amp;</TEXT>
+    </T100>
+    <T100>
+     <ARBGB>ZHR_CLN</ARBGB>
+     <MSGNR>003</MSGNR>
+     <TEXT>Error en clonación: &amp;</TEXT>
+    </T100>
+    <T100>
+     <ARBGB>ZHR_CLN</ARBGB>
+     <MSGNR>004</MSGNR>
+     <TEXT>Sin autorización para operar</TEXT>
+    </T100>
+    <T100>
+     <ARBGB>ZHR_CLN</ARBGB>
+     <MSGNR>005</MSGNR>
+     <TEXT>Archivo exportado exitosamente: &amp;</TEXT>
+    </T100>
+    <T100>
+     <ARBGB>ZHR_CLN</ARBGB>
+     <MSGNR>006</MSGNR>
+     <TEXT>Upload completado: &amp;1 empleados, &amp;2 OK, &amp;3 errores</TEXT>
+    </T100>
+    <T100>
+     <ARBGB>ZHR_CLN</ARBGB>
+     <MSGNR>007</MSGNR>
+     <TEXT>Error en upload: &amp;</TEXT>
+    </T100>
+    <T100>
+     <ARBGB>ZHR_CLN</ARBGB>
+     <MSGNR>008</MSGNR>
+     <TEXT>Empleado reemplazado exitosamente: &amp;</TEXT>
+    </T100>
+    <T100>
+     <ARBGB>ZHR_CLN</ARBGB>
+     <MSGNR>009</MSGNR>
+     <TEXT>Datos borrados correctamente</TEXT>
+    </T100>
+   </T100>
+  </asx:values>
+ </asx:abap>
+</abapGit>
