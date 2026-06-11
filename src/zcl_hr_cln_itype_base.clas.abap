@@ -194,36 +194,28 @@ CLASS zcl_hr_cln_itype_base IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD write_target.
-    DATA: lt_return TYPE STANDARD TABLE OF bapiret2,
-          ls_key    TYPE bapipakey,
-          lv_pernr  TYPE pernr_d,
-          lv_subty  TYPE subty,
-          lv_endda  TYPE endda,
-          lv_begda  TYPE begda.
+    DATA: lv_pernr TYPE pernr_d,
+          lv_subty TYPE subty,
+          lv_endda TYPE endda,
+          lv_begda TYPE begda.
 
     CLEAR: ev_seqnr, ev_subrc.
 
-    " Leer campos clave dinámicamente de is_data para evitar type conflict o dump
+    " Leer campos clave dinámicamente para evitar type conflict
     ASSIGN COMPONENT 'PERNR' OF STRUCTURE is_data TO FIELD-SYMBOL(<lv_pernr>).
-    IF sy-subrc = 0.
-      lv_pernr = <lv_pernr>.
-    ENDIF.
+    IF sy-subrc = 0. lv_pernr = <lv_pernr>. ENDIF.
 
     ASSIGN COMPONENT 'SUBTY' OF STRUCTURE is_data TO FIELD-SYMBOL(<lv_subty>).
-    IF sy-subrc = 0.
-      lv_subty = <lv_subty>.
-    ENDIF.
+    IF sy-subrc = 0. lv_subty = <lv_subty>. ENDIF.
 
     ASSIGN COMPONENT 'ENDDA' OF STRUCTURE is_data TO FIELD-SYMBOL(<lv_endda>).
-    IF sy-subrc = 0.
-      lv_endda = <lv_endda>.
-    ENDIF.
+    IF sy-subrc = 0. lv_endda = <lv_endda>. ENDIF.
 
     ASSIGN COMPONENT 'BEGDA' OF STRUCTURE is_data TO FIELD-SYMBOL(<lv_begda>).
-    IF sy-subrc = 0.
-      lv_begda = <lv_begda>.
-    ENDIF.
+    IF sy-subrc = 0. lv_begda = <lv_begda>. ENDIF.
 
+    " HR_INFOTYPE_OPERATION: firma básica compatible con todas las versiones HCM
+    " No usa TABLES RETURN ni EXPORTING KEY por variabilidad entre releases
     CALL FUNCTION 'HR_INFOTYPE_OPERATION'
       EXPORTING
         infty         = iv_infty
@@ -237,19 +229,26 @@ CLASS zcl_hr_cln_itype_base IMPLEMENTATION.
         record        = is_data
         operation     = iv_mode
         nocommit      = abap_true
-      IMPORTING
-        key           = ls_key
-      TABLES
-        return        = lt_return.
+      EXCEPTIONS
+        infty_not_found = 1
+        unknown_error   = 2
+        locked_by_other = 3
+        internal_error  = 4
+        OTHERS          = 5.
 
-    " Leer SEQNR dinámicamente: la estructura BAPIPAKEY varía entre releases
-    ASSIGN COMPONENT 'SEQNR' OF STRUCTURE ls_key TO FIELD-SYMBOL(<lv_seqnr>).
-    IF sy-subrc = 0.
-      ev_seqnr = <lv_seqnr>.
+    ev_subrc = sy-subrc.
+
+    " SEQNR: leer el último registro insertado si la operación fue exitosa
+    IF ev_subrc = 0.
+      DATA(lv_table) = |PA{ iv_infty }|.
+      SELECT MAX( seqnr )
+        FROM (lv_table)
+        WHERE pernr = @lv_pernr
+          AND subty = @lv_subty
+          AND begda = @lv_begda
+          AND endda = @lv_endda
+        INTO @ev_seqnr.
     ENDIF.
-
-    READ TABLE lt_return WITH KEY type = 'E' TRANSPORTING NO FIELDS.
-    ev_subrc = COND #( WHEN sy-subrc = 0 THEN 4 ELSE 0 ).
   ENDMETHOD.
 
   METHOD clean_technical_fields.
