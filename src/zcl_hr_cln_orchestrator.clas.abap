@@ -131,6 +131,8 @@ CLASS zcl_hr_cln_orchestrator IMPLEMENTATION.
   METHOD execute.
     DATA: lt_results     TYPE gtt_results,
           ls_result      TYPE gty_result,
+          lt_pernrs      TYPE STANDARD TABLE OF pernr_d,
+          lv_pernr       TYPE pernr_d,
           lv_export_path TYPE string.
 
     CLEAR: et_results, ev_export_path.
@@ -143,13 +145,15 @@ CLASS zcl_hr_cln_orchestrator IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    " Resolver PERNRs reales que cumplen el rango de selección
+    " Resolver PERNRs reales que cumplen el rango de selección.
+    " Tabla elemental explícita: con @DATA inline el row type sería
+    " una estructura y fallaría la compatibilidad con pernr_d.
     SELECT DISTINCT pernr
       FROM pa0000
      WHERE pernr IN @is_params-pernr_src
-      INTO TABLE @DATA(lt_pernrs).
+      INTO TABLE @lt_pernrs.
 
-    LOOP AT lt_pernrs INTO DATA(lv_pernr).
+    LOOP AT lt_pernrs INTO lv_pernr.
       IF check_authorizations( lv_pernr ) = abap_false.
         go_logger->log_error(
           iv_pernr_src = lv_pernr
