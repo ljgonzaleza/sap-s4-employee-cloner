@@ -290,7 +290,7 @@ CLASS zcl_hr_cln_logger IMPLEMENTATION.
           CHANGING  t_table      = gt_log_entries
         ).
         lo_alv->get_functions( )->set_all( abap_true ).
-        lo_alv->get_columns( )->optimize( ).
+        lo_alv->get_columns( )->set_optimize( abap_true ).
         lo_alv->display( ).
       CATCH cx_salv_msg INTO DATA(lx_msg).
         MESSAGE lx_msg->get_text( ) TYPE 'E'.
