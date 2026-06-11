@@ -34,24 +34,10 @@ SELECTION-SCREEN BEGIN OF BLOCK b01 WITH FRAME TITLE TEXT-001.
   SELECT-OPTIONS: s_pernr FOR pernr-pernr OBLIGATORY.
 SELECTION-SCREEN END OF BLOCK b01.
 
-SELECTION-SCREEN BEGIN OF BLOCK b02 WITH FRAME TITLE TEXT-002.
-  SELECTION-SCREEN BEGIN OF LINE.
-    SELECTION-SCREEN COMMENT 1(25) TEXT-p01.
-    PARAMETERS: p_mode TYPE char1 DEFAULT 'A'.
-  SELECTION-SCREEN END OF LINE.
-  SELECT-OPTIONS: s_ptgt FOR pernr-pernr NO INTERVALS.
-  PARAMETERS:
-    p_bukrs TYPE bukrs,
-    p_werks TYPE persa,
-    p_btrtl TYPE btrtl.
-SELECTION-SCREEN END OF BLOCK b02.
-
 SELECTION-SCREEN BEGIN OF BLOCK b03 WITH FRAME TITLE TEXT-003.
   PARAMETERS:
-    p_hist  AS CHECKBOX DEFAULT '',
     p_simul AS CHECKBOX DEFAULT 'X',
-    p_overw AS CHECKBOX DEFAULT '',
-    p_anon  AS CHECKBOX DEFAULT 'X',
+    p_overw AS CHECKBOX DEFAULT 'X',
     p_shift TYPE i DEFAULT 0.
 SELECTION-SCREEN END OF BLOCK b03.
 
@@ -124,11 +110,8 @@ FORM execute_clone.
 
   DATA(ls_params) = VALUE zcl_hr_cln_orchestrator=>gty_params(
     pernr_src    = s_pernr[]
-    pernr_tgt    = s_ptgt[]
-    bukrs        = p_bukrs
-    werks        = p_werks
-    btrtl        = p_btrtl
-    copy_hist    = p_hist
+    pernr_tgt    = s_pernr[] " Destino es el mismo origen
+    copy_hist    = abap_true " Siempre todo el histórico
     simulation   = p_simul
     overwrite    = p_overw
     date_shift   = p_shift
@@ -136,7 +119,7 @@ FORM execute_clone.
     itype_to     = p_ito
     country      = p_ctry
     incl_tm      = p_incltm
-    anon_names   = p_anon
+    anon_names   = abap_true " Siempre nombres ficticios
     export_local = p_exp
     exp_format   = p_format
     exp_path     = p_path

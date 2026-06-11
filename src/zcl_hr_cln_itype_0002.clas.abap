@@ -60,12 +60,19 @@ CLASS zcl_hr_cln_itype_0002 DEFINITION
 
   PRIVATE SECTION.
 
-    " Catálogo de futbolistas destacados de toda la historia
+    " Catálogo de futbolistas destacados de toda la historia (Masculino)
     CLASS-DATA: gt_players TYPE gtt_players.
+
+    " Catálogo de mujeres famosas (Femenino)
+    CLASS-DATA: gt_female_names TYPE gtt_players.
 
     CLASS-METHODS get_players
       RETURNING
         VALUE(rt_players) TYPE gtt_players.
+
+    CLASS-METHODS get_female_names
+      RETURNING
+        VALUE(rt_female) TYPE gtt_players.
 
 ENDCLASS.
 
@@ -219,16 +226,32 @@ CLASS zcl_hr_cln_itype_0002 IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD assign_fictitious_name.
-    DATA: lv_index TYPE i.
+    DATA: lv_index  TYPE i,
+          lt_list   TYPE gtt_players,
+          ls_person TYPE gty_player.
 
-    IF gt_players IS INITIAL.
-      gt_players = get_players( ).
+    " Determinar lista según el género del empleado (P0002-GESCH)
+    " '1' = Masculino, '2' = Femenino
+    IF cs_data-gesch = '2'.
+      IF gt_female_names IS INITIAL.
+        gt_female_names = get_female_names( ).
+      ENDIF.
+      lt_list = gt_female_names.
+    ELSE.
+      IF gt_players IS INITIAL.
+        gt_players = get_players( ).
+      ENDIF.
+      lt_list = gt_players.
     ENDIF.
 
-    " Asignación determinística: mismo PERNR → mismo futbolista
-    lv_index = ( iv_pernr MOD lines( gt_players ) ) + 1.
+    IF lt_list IS INITIAL.
+      RETURN.
+    ENDIF.
 
-    READ TABLE gt_players INTO DATA(ls_player) INDEX lv_index.
+    " Asignación determinística: mismo PERNR -> mismo personaje
+    lv_index = ( iv_pernr MOD lines( lt_list ) ) + 1.
+
+    READ TABLE lt_list INTO ls_person INDEX lv_index.
     IF sy-subrc <> 0.
       RETURN.
     ENDIF.
@@ -236,37 +259,37 @@ CLASS zcl_hr_cln_itype_0002 IMPLEMENTATION.
     " Nombre y apellido
     ASSIGN COMPONENT 'VORNA' OF STRUCTURE cs_data TO FIELD-SYMBOL(<lv_vorna>).
     IF sy-subrc = 0.
-      <lv_vorna> = ls_player-vorna.
+      <lv_vorna> = ls_person-vorna.
     ENDIF.
 
     ASSIGN COMPONENT 'NACHN' OF STRUCTURE cs_data TO FIELD-SYMBOL(<lv_nachn>).
     IF sy-subrc = 0.
-      <lv_nachn> = ls_player-nachn.
+      <lv_nachn> = ls_person-nachn.
     ENDIF.
 
     " Nombre completo
     ASSIGN COMPONENT 'CNAME' OF STRUCTURE cs_data TO FIELD-SYMBOL(<lv_cname>).
     IF sy-subrc = 0.
-      <lv_cname> = |{ ls_player-vorna } { ls_player-nachn }|.
+      <lv_cname> = |{ ls_person-vorna } { ls_person-nachn }|.
     ENDIF.
 
     " Apodo / nombre de pila
     ASSIGN COMPONENT 'RUFNM' OF STRUCTURE cs_data TO FIELD-SYMBOL(<lv_rufnm>).
     IF sy-subrc = 0.
-      <lv_rufnm> = ls_player-vorna.
+      <lv_rufnm> = ls_person-vorna.
     ENDIF.
 
     " Iniciales
     ASSIGN COMPONENT 'INITS' OF STRUCTURE cs_data TO FIELD-SYMBOL(<lv_inits>).
     IF sy-subrc = 0.
-      <lv_inits> = |{ ls_player-vorna(1) }{ ls_player-nachn(1) }|.
+      <lv_inits> = |{ ls_person-vorna(1) }{ ls_person-nachn(1) }|.
     ENDIF.
 
     IF go_logger IS BOUND.
       go_logger->log_success(
         iv_pernr_tgt = iv_pernr
         iv_infty     = gc_infty
-        iv_msg       = |Nombre ficticio asignado: { ls_player-vorna } { ls_player-nachn }|
+        iv_msg       = |Nombre ficticio asignado: { ls_person-vorna } { ls_person-nachn } (Género: { cs_data-gesch })|
       ).
     ENDIF.
   ENDMETHOD.
@@ -313,6 +336,41 @@ CLASS zcl_hr_cln_itype_0002 IMPLEMENTATION.
       ( vorna = `Enzo`        nachn = `Francescoli`  )
       ( vorna = `Hugo`        nachn = `Sánchez`      )
       ( vorna = `Kaká`        nachn = `Leite`        )
+    ).
+  ENDMETHOD.
+
+  METHOD get_female_names.
+    rt_female = VALUE #(
+      ( vorna = `Shakira`     nachn = `Mebarak`      )
+      ( vorna = `Beyoncé`     nachn = `Knowles`      )
+      ( vorna = `Madonna`     nachn = `Ciccone`      )
+      ( vorna = `Taylor`      nachn = `Swift`        )
+      ( vorna = `Adele`       nachn = `Adkins`       )
+      ( vorna = `Whitney`     nachn = `Houston`      )
+      ( vorna = `Lady`        nachn = `Gaga`         )
+      ( vorna = `Celine`      nachn = `Dion`         )
+      ( vorna = `Mariah`      nachn = `Carey`        )
+      ( vorna = `Aretha`      nachn = `Franklin`     )
+      ( vorna = `Billie`      nachn = `Eilish`       )
+      ( vorna = `Dua`         nachn = `Lipa`         )
+      ( vorna = `Amy`         nachn = `Winehouse`    )
+      ( vorna = `Rihanna`     nachn = `Fenty`        )
+      ( vorna = `Selena`      nachn = `Gomez`        )
+      ( vorna = `Karol`       nachn = `G`            )
+      ( vorna = `Jennifer`    nachn = `Lopez`        )
+      ( vorna = `Cher`        nachn = `Sarkisian`    )
+      ( vorna = `Dolly`       nachn = `Parton`       )
+      ( vorna = `Tina`        nachn = `Turner`       )
+      ( vorna = `Gloria`      nachn = `Estefan`      )
+      ( vorna = `Celia`       nachn = `Cruz`         )
+      ( vorna = `Mercedes`    nachn = `Sosa`         )
+      ( vorna = `Frida`       nachn = `Kahlo`        )
+      ( vorna = `Marie`       nachn = `Curie`        )
+      ( vorna = `Cleopatra`   nachn = `Filopátor`    )
+      ( vorna = `Marilyn`     nachn = `Monroe`       )
+      ( vorna = `Diana`       nachn = `Spencer`      )
+      ( vorna = `Audrey`      nachn = `Hepburn`      )
+      ( vorna = `Elizabeth`   nachn = `Taylor`       )
     ).
   ENDMETHOD.
 

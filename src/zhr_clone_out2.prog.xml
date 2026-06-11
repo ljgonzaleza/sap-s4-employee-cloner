@@ -24,12 +24,6 @@
     </item>
     <item>
      <ID>I</ID>
-     <KEY>002</KEY>
-     <ENTRY>Destino</ENTRY>
-     <LENGTH>30</LENGTH>
-    </item>
-    <item>
-     <ID>I</ID>
      <KEY>003</KEY>
      <ENTRY>Opciones de Clonación</ENTRY>
      <LENGTH>30</LENGTH>
@@ -54,12 +48,6 @@
     </item>
     <item>
      <ID>I</ID>
-     <KEY>P01</KEY>
-     <ENTRY>Modo:</ENTRY>
-     <LENGTH>25</LENGTH>
-    </item>
-    <item>
-     <ID>I</ID>
      <KEY>P02</KEY>
      <ENTRY>Ruta:</ENTRY>
      <LENGTH>20</LENGTH>
@@ -68,42 +56,6 @@
      <ID>S</ID>
      <KEY>S_PERNR</KEY>
      <ENTRY>Nº personal origen</ENTRY>
-     <LENGTH>30</LENGTH>
-    </item>
-    <item>
-     <ID>S</ID>
-     <KEY>S_PTGT</KEY>
-     <ENTRY>Nº personal destino</ENTRY>
-     <LENGTH>30</LENGTH>
-    </item>
-    <item>
-     <ID>S</ID>
-     <KEY>P_MODE</KEY>
-     <ENTRY>Modo asignación destino</ENTRY>
-     <LENGTH>30</LENGTH>
-    </item>
-    <item>
-     <ID>S</ID>
-     <KEY>P_BUKRS</KEY>
-     <ENTRY>Sociedad</ENTRY>
-     <LENGTH>30</LENGTH>
-    </item>
-    <item>
-     <ID>S</ID>
-     <KEY>P_WERKS</KEY>
-     <ENTRY>División de personal</ENTRY>
-     <LENGTH>30</LENGTH>
-    </item>
-    <item>
-     <ID>S</ID>
-     <KEY>P_BTRTL</KEY>
-     <ENTRY>Subdivisión de personal</ENTRY>
-     <LENGTH>30</LENGTH>
-    </item>
-    <item>
-     <ID>S</ID>
-     <KEY>P_HIST</KEY>
-     <ENTRY>Copiar histórico completo</ENTRY>
      <LENGTH>30</LENGTH>
     </item>
     <item>
@@ -117,12 +69,6 @@
      <KEY>P_OVERW</KEY>
      <ENTRY>Sobrescribir existentes</ENTRY>
      <LENGTH>30</LENGTH>
-    </item>
-    <item>
-     <ID>S</ID>
-     <KEY>P_ANON</KEY>
-     <ENTRY>Nombres ficticios (futbolistas)</ENTRY>
-     <LENGTH>35</LENGTH>
     </item>
     <item>
      <ID>S</ID>
