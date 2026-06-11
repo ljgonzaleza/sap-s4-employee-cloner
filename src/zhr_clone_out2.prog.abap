@@ -37,20 +37,14 @@ SELECTION-SCREEN END OF BLOCK b01.
 SELECTION-SCREEN BEGIN OF BLOCK b03 WITH FRAME TITLE TEXT-003.
   PARAMETERS:
     p_simul AS CHECKBOX DEFAULT 'X',
-    p_overw AS CHECKBOX DEFAULT 'X',
-    p_shift TYPE i DEFAULT 0.
+    p_overw AS CHECKBOX DEFAULT 'X'.
 SELECTION-SCREEN END OF BLOCK b03.
 
 SELECTION-SCREEN BEGIN OF BLOCK b04 WITH FRAME TITLE TEXT-004.
   PARAMETERS:
     p_ifrom TYPE infty DEFAULT '0000',
-    p_ito   TYPE infty DEFAULT '9999',
-    p_ctry  TYPE land1.
+    p_ito   TYPE infty DEFAULT '9999'.
 SELECTION-SCREEN END OF BLOCK b04.
-
-SELECTION-SCREEN BEGIN OF BLOCK b05 WITH FRAME TITLE TEXT-005.
-  PARAMETERS: p_incltm AS CHECKBOX DEFAULT 'X'.
-SELECTION-SCREEN END OF BLOCK b05.
 
 SELECTION-SCREEN BEGIN OF BLOCK b06 WITH FRAME TITLE TEXT-006.
   PARAMETERS:
@@ -59,7 +53,7 @@ SELECTION-SCREEN BEGIN OF BLOCK b06 WITH FRAME TITLE TEXT-006.
     p_split  AS CHECKBOX DEFAULT ''.
   SELECTION-SCREEN BEGIN OF LINE.
     SELECTION-SCREEN COMMENT 1(20) TEXT-p02.
-    PARAMETERS: p_path TYPE localfile.
+    PARAMETERS: p_path TYPE localfile DEFAULT 'C:\temp\'.
   SELECTION-SCREEN END OF LINE.
 SELECTION-SCREEN END OF BLOCK b06.
 
@@ -93,10 +87,6 @@ FORM validate_input.
     MESSAGE e000(zhr_cln) WITH 'Formato de exportación inválido'.
   ENDIF.
 
-  IF p_shift < -365 OR p_shift > 365.
-    MESSAGE e000(zhr_cln) WITH 'Shift de fechas: entre -365 y 365 días'.
-  ENDIF.
-
 ENDFORM.
 
 *&--------------------------------------------------------------------*
@@ -108,17 +98,20 @@ FORM execute_clone.
         lv_ok    TYPE i,
         lv_err   TYPE i.
 
+  " Si se exporta, forzar el modo de simulación a falso (modo real)
+  DATA(lv_simul) = COND abap_bool( WHEN p_exp = abap_true THEN abap_false ELSE p_simul ).
+
   DATA(ls_params) = VALUE zcl_hr_cln_orchestrator=>gty_params(
     pernr_src    = s_pernr[]
     pernr_tgt    = s_pernr[] " Destino es el mismo origen
     copy_hist    = abap_true " Siempre todo el histórico
-    simulation   = p_simul
+    simulation   = lv_simul
     overwrite    = p_overw
-    date_shift   = p_shift
+    date_shift   = 0         " Sin desplazamiento de fechas (misma info del origen)
     itype_from   = p_ifrom
     itype_to     = p_ito
-    country      = p_ctry
-    incl_tm      = p_incltm
+    country      = space     " Sin filtro por país
+    incl_tm      = abap_true " Siempre incluir Time Management y clusters
     anon_names   = abap_true " Siempre nombres ficticios
     export_local = p_exp
     exp_format   = p_format

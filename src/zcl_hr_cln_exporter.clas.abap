@@ -206,7 +206,8 @@ CLASS zcl_hr_cln_exporter IMPLEMENTATION.
 
   METHOD download_to_pc.
     DATA: lt_data   TYPE STANDARD TABLE OF x255,
-          lv_length TYPE i.
+          lv_length TYPE i,
+          lv_path   TYPE string.
 
     " Convertir xstring a tabla binaria
     CALL FUNCTION 'SCMS_XSTRING_TO_BINARY'
@@ -217,10 +218,12 @@ CLASS zcl_hr_cln_exporter IMPLEMENTATION.
       TABLES
         binary_tab    = lt_data.
 
+    lv_path = iv_filename.
+
     cl_gui_frontend_services=>gui_download(
       EXPORTING
         bin_filesize            = lv_length
-        filename                = iv_filename
+        filename                = lv_path
         filetype                = 'BIN'
       CHANGING
         data_tab                = lt_data
@@ -231,8 +234,50 @@ CLASS zcl_hr_cln_exporter IMPLEMENTATION.
         OTHERS                  = 17
     ).
 
+    IF sy-subrc <> 0.
+      " Si falla (ej: la ruta C:\temp\ no existe), descargar en el directorio temporal del GUI
+      DATA: lv_temp_dir TYPE string,
+            lv_name     TYPE string.
+
+      cl_gui_frontend_services=>get_temp_dir(
+        CHANGING
+          temp_dir             = lv_temp_dir
+        EXCEPTIONS
+          OTHERS               = 5
+      ).
+
+      IF sy-subrc = 0 AND lv_temp_dir IS NOT INITIAL.
+        CALL FUNCTION 'SO_SPLIT_FILE_AND_PATH'
+          EXPORTING
+            full_name     = lv_path
+          IMPORTING
+            stripped_name = lv_name.
+
+        DATA(lv_len_temp) = strlen( lv_temp_dir ).
+        IF lv_len_temp > 0.
+          DATA(lv_last_temp) = lv_temp_dir+lv_len_temp-1(1).
+          IF lv_last_temp <> '\' AND lv_last_temp <> '/'.
+            lv_temp_dir = lv_temp_dir && `\`.
+          ENDIF.
+        ENDIF.
+
+        lv_path = lv_temp_dir && lv_name.
+
+        cl_gui_frontend_services=>gui_download(
+          EXPORTING
+            bin_filesize            = lv_length
+            filename                = lv_path
+            filetype                = 'BIN'
+          CHANGING
+            data_tab                = lt_data
+          EXCEPTIONS
+            OTHERS                  = 17
+        ).
+      ENDIF.
+    ENDIF.
+
     IF sy-subrc = 0.
-      ev_path = iv_filename.
+      ev_path = lv_path.
     ENDIF.
   ENDMETHOD.
 
