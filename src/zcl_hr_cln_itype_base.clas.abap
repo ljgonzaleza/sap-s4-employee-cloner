@@ -238,10 +238,15 @@ CLASS zcl_hr_cln_itype_base IMPLEMENTATION.
         operation     = iv_mode
         nocommit      = abap_true
       IMPORTING
-        return        = lt_return
-        key           = ls_key.
+        key           = ls_key
+      TABLES
+        return        = lt_return.
 
-    ev_seqnr = ls_key-seqnr.
+    " Leer SEQNR dinámicamente: la estructura BAPIPAKEY varía entre releases
+    ASSIGN COMPONENT 'SEQNR' OF STRUCTURE ls_key TO FIELD-SYMBOL(<lv_seqnr>).
+    IF sy-subrc = 0.
+      ev_seqnr = <lv_seqnr>.
+    ENDIF.
 
     READ TABLE lt_return WITH KEY type = 'E' TRANSPORTING NO FIELDS.
     ev_subrc = COND #( WHEN sy-subrc = 0 THEN 4 ELSE 0 ).
