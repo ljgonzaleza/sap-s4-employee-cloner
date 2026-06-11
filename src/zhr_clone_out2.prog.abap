@@ -34,12 +34,6 @@ SELECTION-SCREEN BEGIN OF BLOCK b01 WITH FRAME TITLE TEXT-001.
   SELECT-OPTIONS: s_pernr FOR pernr-pernr OBLIGATORY.
 SELECTION-SCREEN END OF BLOCK b01.
 
-SELECTION-SCREEN BEGIN OF BLOCK b03 WITH FRAME TITLE TEXT-003.
-  PARAMETERS:
-    p_simul AS CHECKBOX DEFAULT 'X',
-    p_overw AS CHECKBOX DEFAULT 'X'.
-SELECTION-SCREEN END OF BLOCK b03.
-
 SELECTION-SCREEN BEGIN OF BLOCK b04 WITH FRAME TITLE TEXT-004.
   PARAMETERS:
     p_ifrom TYPE infty DEFAULT '0000',
@@ -47,10 +41,6 @@ SELECTION-SCREEN BEGIN OF BLOCK b04 WITH FRAME TITLE TEXT-004.
 SELECTION-SCREEN END OF BLOCK b04.
 
 SELECTION-SCREEN BEGIN OF BLOCK b06 WITH FRAME TITLE TEXT-006.
-  PARAMETERS:
-    p_exp    AS CHECKBOX DEFAULT '',
-    p_format TYPE char4 DEFAULT 'XLSX',
-    p_split  AS CHECKBOX DEFAULT ''.
   SELECTION-SCREEN BEGIN OF LINE.
     SELECTION-SCREEN COMMENT 1(20) TEXT-p02.
     PARAMETERS: p_path TYPE localfile DEFAULT 'C:\temp\'.
@@ -82,10 +72,6 @@ FORM validate_input.
     MESSAGE e000(zhr_cln) WITH 'Debe seleccionar al menos un PERNR origen'.
   ENDIF.
 
-  IF p_exp = abap_true AND
-     NOT ( p_format = 'XLSX' OR p_format = 'CSV' OR p_format = 'JSON' ).
-    MESSAGE e000(zhr_cln) WITH 'Formato de exportación inválido'.
-  ENDIF.
 
 ENDFORM.
 
@@ -98,25 +84,22 @@ FORM execute_clone.
         lv_ok    TYPE i,
         lv_err   TYPE i.
 
-  " Si se exporta, forzar el modo de simulación a falso (modo real)
-  DATA(lv_simul) = COND abap_bool( WHEN p_exp = abap_true THEN abap_false ELSE p_simul ).
-
   DATA(ls_params) = VALUE zcl_hr_cln_orchestrator=>gty_params(
     pernr_src    = s_pernr[]
     pernr_tgt    = s_pernr[] " Destino es el mismo origen
     copy_hist    = abap_true " Siempre todo el histórico
-    simulation   = lv_simul
-    overwrite    = p_overw
-    date_shift   = 0         " Sin desplazamiento de fechas (misma info del origen)
+    simulation   = abap_false
+    overwrite    = abap_true
+    date_shift   = 0         " Sin desplazamiento de fechas
     itype_from   = p_ifrom
     itype_to     = p_ito
-    country      = space     " Sin filtro por país
-    incl_tm      = abap_true " Siempre incluir Time Management y clusters
-    anon_names   = abap_true " Siempre nombres ficticios
-    export_local = p_exp
-    exp_format   = p_format
+    country      = space
+    incl_tm      = abap_true
+    anon_names   = abap_true
+    export_local = abap_true " Siempre genera archivos de texto plano
+    exp_format   = 'TXT'
     exp_path     = p_path
-    exp_split    = p_split
+    exp_split    = abap_false
   ).
 
   go_orchestrator = NEW zcl_hr_cln_orchestrator( ).

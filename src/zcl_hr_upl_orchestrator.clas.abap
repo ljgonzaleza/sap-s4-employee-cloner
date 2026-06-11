@@ -192,7 +192,8 @@ CLASS zcl_hr_upl_orchestrator IMPLEMENTATION.
     CLEAR: et_employees, ev_valid.
 
     CASE is_params-format.
-      WHEN 'CSV'.
+      WHEN 'CSV' OR 'TXT'.
+        " Formato texto plano pipe-delimitado (extensión .txt o .csv, mismo contenido)
         go_file_reader->read_csv(
           EXPORTING iv_path  = is_params-path
           IMPORTING et_lines = lt_lines
@@ -206,7 +207,7 @@ CLASS zcl_hr_upl_orchestrator IMPLEMENTATION.
                       ev_valid     = ev_valid
           ).
         ELSE.
-          go_logger->log_error( iv_msg = |Error leyendo archivo CSV| ).
+          go_logger->log_error( iv_msg = |Error leyendo archivo de texto plano| ).
         ENDIF.
 
       WHEN 'XLSX'.

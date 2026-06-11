@@ -131,7 +131,7 @@ CLASS zcl_hr_cln_exporter IMPLEMENTATION.
       APPEND LINES OF lt_pernr_lines TO lt_all_lines.
 
       IF iv_split = abap_true.
-        lv_filename = |{ lv_dir }Infotipos_{ lv_pernr }.csv|.
+        lv_filename = |{ lv_dir }Infotipos_{ lv_pernr }.txt|.
         DATA(lv_xstr) = cl_abap_codepage=>convert_to(
           source   = concat_lines_of( table = lt_all_lines sep = cl_abap_char_utilities=>cr_lf )
           codepage = 'UTF-8' ).
@@ -142,7 +142,7 @@ CLASS zcl_hr_cln_exporter IMPLEMENTATION.
 
     IF iv_split = abap_false AND lt_all_lines IS NOT INITIAL.
       " Nombre fijo para facilitar la carga desde C:\temp\ sin buscar el archivo
-      lv_filename = |{ lv_dir }Infotipos_.csv|.
+      lv_filename = |{ lv_dir }Infotipos_.txt|.
       DATA(lv_xstring) = cl_abap_codepage=>convert_to(
         source   = concat_lines_of( table = lt_all_lines sep = cl_abap_char_utilities=>cr_lf )
         codepage = 'UTF-8' ).
@@ -349,7 +349,7 @@ CLASS zcl_hr_cln_exporter IMPLEMENTATION.
     ENDLOOP.
 
     " Nombre fijo para facilitar la carga desde C:\temp\ sin buscar el archivo
-    lv_file = |{ lv_dir }Clusters_.csv|.
+    lv_file = |{ lv_dir }Clusters_.txt|.
 
     DATA(lv_xstring) = cl_abap_codepage=>convert_to(
       source   = concat_lines_of( table = lt_lines sep = cl_abap_char_utilities=>cr_lf )

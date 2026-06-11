@@ -27,26 +27,18 @@ DATA:
 *--------------------------------------------------------------------*
 SELECTION-SCREEN BEGIN OF BLOCK b01 WITH FRAME TITLE TEXT-001.
   PARAMETERS:
-    p_path   TYPE localfile DEFAULT 'C:\temp\Infotipos_.csv' OBLIGATORY,
-    p_format TYPE char4 DEFAULT 'CSV'.
+    p_path   TYPE localfile DEFAULT 'C:\temp\Infotipos_.txt' OBLIGATORY,
+    p_format TYPE char4 DEFAULT 'TXT'.
 SELECTION-SCREEN END OF BLOCK b01.
 
 SELECTION-SCREEN BEGIN OF BLOCK b04 WITH FRAME TITLE TEXT-004.
   PARAMETERS:
-    p_clpath TYPE localfile DEFAULT 'C:\temp\Clusters_.csv'.
+    p_clpath TYPE localfile DEFAULT 'C:\temp\Clusters_.txt'.
   SELECTION-SCREEN COMMENT /1(60) TEXT-c01.
 SELECTION-SCREEN END OF BLOCK b04.
 
-SELECTION-SCREEN BEGIN OF BLOCK b02 WITH FRAME TITLE TEXT-002.
-  PARAMETERS: p_mode TYPE char1 DEFAULT 'R'.
-  SELECTION-SCREEN COMMENT /1(30) TEXT-m01.
-  SELECTION-SCREEN COMMENT /1(30) TEXT-m02.
-  SELECTION-SCREEN COMMENT /1(30) TEXT-m03.
-SELECTION-SCREEN END OF BLOCK b02.
-
 SELECTION-SCREEN BEGIN OF BLOCK b03 WITH FRAME TITLE TEXT-003.
   PARAMETERS:
-    p_simul  AS CHECKBOX DEFAULT 'X',
     p_deltm  AS CHECKBOX DEFAULT 'X',
     p_commit TYPE numc3 DEFAULT '10',
     p_stop   AS CHECKBOX DEFAULT ''.
@@ -82,36 +74,27 @@ FORM validate_input.
   ).
 
   IF lv_file_exists = abap_false.
-    MESSAGE e000(zhr_cln) WITH 'El archivo no existe en la ruta indicada'.
+    MESSAGE e000(zhr_cln) WITH 'El archivo de infotipos no existe en la ruta indicada'.
   ENDIF.
 
-  IF NOT ( p_format = 'XLSX' OR p_format = 'CSV' ).
-    MESSAGE e000(zhr_cln) WITH 'Formato debe ser XLSX o CSV'.
-  ENDIF.
+  " Confirmación antes de sobreescribir datos (siempre modo Reemplazar)
+  CALL FUNCTION 'POPUP_TO_CONFIRM'
+    EXPORTING
+      titlebar              = 'Confirmación Requerida'
+      text_question         = 'Se borrarán y reemplazarán los datos existentes del empleado. ¿Continuar?'
+      text_button_1         = 'Sí'
+      text_button_2         = 'No'
+      default_button        = '2'
+      display_cancel_button = ' '
+    IMPORTING
+      answer                = lv_answer
+    EXCEPTIONS
+      text_not_found        = 1
+      OTHERS                = 2.
 
-  IF NOT ( p_mode = 'N' OR p_mode = 'R' OR p_mode = 'M' ).
-    MESSAGE e000(zhr_cln) WITH 'Modo inválido: N, R o M'.
-  ENDIF.
-
-  IF p_mode = 'R' AND p_simul = abap_false.
-    CALL FUNCTION 'POPUP_TO_CONFIRM'
-      EXPORTING
-        titlebar              = 'Confirmación Requerida'
-        text_question         = 'Modo REEMPLAZAR borrará los datos existentes. ¿Continuar?'
-        text_button_1         = 'Sí'
-        text_button_2         = 'No'
-        default_button        = '2'
-        display_cancel_button = ' '
-      IMPORTING
-        answer                = lv_answer
-      EXCEPTIONS
-        text_not_found        = 1
-        OTHERS                = 2.
-
-    IF lv_answer <> '1'.
-      MESSAGE i000(zhr_cln) WITH 'Operación cancelada por usuario'.
-      LEAVE PROGRAM.
-    ENDIF.
+  IF lv_answer <> '1'.
+    MESSAGE i000(zhr_cln) WITH 'Operación cancelada por usuario'.
+    LEAVE PROGRAM.
   ENDIF.
 
 ENDFORM.
@@ -127,9 +110,9 @@ FORM execute_upload.
 
   DATA(ls_params) = VALUE zcl_hr_upl_orchestrator=>gty_params(
     path           = p_path
-    format         = p_format
-    mode           = p_mode
-    simulation     = p_simul
+    format         = 'TXT'
+    mode           = 'R'         " Siempre Reemplazar
+    simulation     = abap_false  " Siempre modo real
     del_tm         = p_deltm
     commit_size    = p_commit
     stop_on_error  = p_stop
@@ -186,12 +169,8 @@ ENDFORM.
 *--------------------------------------------------------------------*
 * Textos (crear en SE38 → Ir a → Elementos de texto)
 *--------------------------------------------------------------------*
-* TEXT-001 = 'Archivo Origen (Infotipos)'
-* TEXT-002 = 'Modo de Carga'
-* TEXT-003 = 'Opciones'
-* TEXT-004 = 'Archivo de Clusters (Opcional)'
-* TEXT-m01 = 'N = Solo Nuevos'
-* TEXT-m02 = 'R = Reemplazar (Borrar + Insertar)'
-* TEXT-m03 = 'M = Merge (Solo faltantes)'
-* TEXT-c01 = 'CLONE_CLUSTERS_*.dat generado por ZHR_CLONE_OUT2'
+* TEXT-001 = 'Archivo Infotipos_'
+* TEXT-003 = 'Opciones de Carga'
+* TEXT-004 = 'Archivo Clusters_ (Opcional)'
+* TEXT-c01 = 'Clusters_.txt generado por ZHR_CLONE_OUT2'
 *--------------------------------------------------------------------*

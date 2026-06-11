@@ -214,11 +214,8 @@ CLASS zcl_hr_cln_orchestrator IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    " IN con lista de literales no existe en ABAP: comparación explícita
-    IF is_params-export_local = abap_true AND
-       NOT ( is_params-exp_format = 'XLSX' OR
-             is_params-exp_format = 'CSV'  OR
-             is_params-exp_format = 'JSON' ).
+    " Sin validación de formato: siempre texto plano (TXT)
+    IF is_params-export_local = abap_true AND is_params-exp_format IS INITIAL.
       rv_valid = abap_false.
     ENDIF.
   ENDMETHOD.
