@@ -60,6 +60,12 @@ CLASS zcl_hr_cln_exporter DEFINITION PUBLIC CREATE PUBLIC.
 
     DATA: go_logger TYPE REF TO zcl_hr_cln_logger.
 
+  PRIVATE SECTION.
+
+    " Receptor estático para llamadas GUI asíncronas (evita SYSTEM_POINTER_PENDING
+    " cuando CL_GUI_FRONTEND_SERVICES usa variables locales como CHANGING)
+    CLASS-DATA: gv_temp_dir TYPE string.
+
     " Leer TODOS los infotipos, TEVEN y PTQUODED de un PERNR y devolver líneas del archivo
     METHODS read_pernr_all_data
       IMPORTING
@@ -386,34 +392,38 @@ CLASS zcl_hr_cln_exporter IMPLEMENTATION.
     ).
 
     IF sy-subrc <> 0.
-      " Si falla (ej: la ruta C:\temp\ no existe), descargar en el directorio temporal del GUI
-      DATA: lv_temp_dir TYPE string,
-            lv_name     TYPE string.
+      " Si falla (ej: la ruta C:\temp\ no existe), descargar en el directorio temporal del GUI.
+      " gv_temp_dir es CLASS-DATA: el atributo estático evita SYSTEM_POINTER_PENDING,
+      " ya que las llamadas CL_GUI_FRONTEND_SERVICES se procesan de forma asíncrona
+      " y las variables locales pueden haber desaparecido cuando se hace el flush.
+      DATA: lv_name TYPE string.
 
+      CLEAR gv_temp_dir.
       cl_gui_frontend_services=>get_temp_directory(
         CHANGING
-          temp_dir             = lv_temp_dir
+          temp_dir             = gv_temp_dir
         EXCEPTIONS
           OTHERS               = 5
       ).
+      cl_gui_cfw=>flush( ).
 
-      IF sy-subrc = 0 AND lv_temp_dir IS NOT INITIAL.
+      IF sy-subrc = 0 AND gv_temp_dir IS NOT INITIAL.
         CALL FUNCTION 'SO_SPLIT_FILE_AND_PATH'
           EXPORTING
             full_name     = lv_path
           IMPORTING
             stripped_name = lv_name.
 
-        DATA(lv_len_temp) = strlen( lv_temp_dir ).
+        DATA(lv_len_temp) = strlen( gv_temp_dir ).
         IF lv_len_temp > 0.
           DATA(lv_off_temp) = lv_len_temp - 1.
-          DATA(lv_last_temp) = lv_temp_dir+lv_off_temp(1).
+          DATA(lv_last_temp) = gv_temp_dir+lv_off_temp(1).
           IF lv_last_temp <> '\' AND lv_last_temp <> '/'.
-            lv_temp_dir = lv_temp_dir && `\`.
+            gv_temp_dir = gv_temp_dir && `\`.
           ENDIF.
         ENDIF.
 
-        lv_path = lv_temp_dir && lv_name.
+        lv_path = gv_temp_dir && lv_name.
 
         cl_gui_frontend_services=>gui_download(
           EXPORTING
@@ -434,18 +444,23 @@ CLASS zcl_hr_cln_exporter IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD get_default_path.
+    " Usar gv_temp_dir (CLASS-DATA) como receptor para evitar SYSTEM_POINTER_PENDING
+    CLEAR gv_temp_dir.
     cl_gui_frontend_services=>get_temp_directory(
       CHANGING
-        temp_dir             = rv_path
+        temp_dir             = gv_temp_dir
       EXCEPTIONS
         cntl_error           = 1
         error_no_gui         = 2
         not_supported_by_gui = 3
         OTHERS               = 4
     ).
+    cl_gui_cfw=>flush( ).
 
-    IF sy-subrc <> 0.
-      rv_path = 'C:\\TEMP\\'.
+    IF sy-subrc = 0 AND gv_temp_dir IS NOT INITIAL.
+      rv_path = gv_temp_dir.
+    ELSE.
+      rv_path = 'C:\TEMP\'.
     ENDIF.
   ENDMETHOD.
 
