@@ -27,13 +27,15 @@ CLASS zcl_hr_cln_exporter DEFINITION PUBLIC CREATE PUBLIC.
       IMPORTING
         io_logger TYPE REF TO zcl_hr_cln_logger OPTIONAL.
 
+    TYPES: gtt_pernrs TYPE STANDARD TABLE OF pernr_d WITH DEFAULT KEY.
+
     " Exportación completa de datos reales para carga en otro sistema/mandante
     METHODS export_pernrs_to_file
       IMPORTING
-        it_pernrs    TYPE STANDARD TABLE
-        iv_format    TYPE char4    DEFAULT 'CSV'
-        iv_path      TYPE localfile OPTIONAL
-        iv_split     TYPE abap_bool DEFAULT abap_false
+        it_pernrs    TYPE gtt_pernrs
+        iv_format    TYPE char4      DEFAULT 'CSV'
+        iv_path      TYPE localfile  OPTIONAL
+        iv_split     TYPE abap_bool  DEFAULT abap_false
       EXPORTING
         ev_file_path TYPE string.
 
@@ -103,9 +105,7 @@ CLASS zcl_hr_cln_exporter IMPLEMENTATION.
     APPEND |#TYPE{ gc_file_sep }INFTY{ gc_file_sep }PERNR{ gc_file_sep }SUBTY{ gc_file_sep }BEGDA{ gc_file_sep }ENDDA{ gc_file_sep }SEQNR{ gc_file_sep }XML_DATA|
       TO lt_all_lines.
 
-    LOOP AT it_pernrs INTO DATA(ls_row).
-      ASSIGN ls_row TO FIELD-SYMBOL(<lv_pernr_any>).
-      lv_pernr = <lv_pernr_any>.
+    LOOP AT it_pernrs INTO lv_pernr.
 
       CLEAR lt_pernr_lines.
       read_pernr_all_data(
