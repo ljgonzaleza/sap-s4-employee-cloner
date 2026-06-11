@@ -4,14 +4,11 @@
   <asx:values>
    <PROGDIR>
     <NAME>ZHR_CLONE_IN2</NAME>
-    <DBAPL>S</DBAPL>
-    <DBNA>D$</DBNA>
-    <CLAS>1</CLAS>
-    <TYPE>1</TYPE>
-    <TITL>Cargador de Empleados desde Archivo Local</TITL>
-    <SQLX>X</SQLX>
-    <ABAP4>X</ABAP4>
-    <UNICODE>X</UNICODE>
+    <STATE>A</STATE>
+    <VARCL>X</VARCL>
+    <SUBC>1</SUBC>
+    <FIXPT>X</FIXPT>
+    <UCCHECK>X</UCCHECK>
    </PROGDIR>
    <TPOOL>
     <item>
