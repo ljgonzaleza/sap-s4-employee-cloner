@@ -378,15 +378,18 @@ CLASS zcl_hr_upl_orchestrator IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD process_merge.
-    DATA: lv_ok TYPE i,
-          lv_er TYPE i.
+    DATA: lv_ok           TYPE i,
+          lv_er           TYPE i,
+          lv_table        TYPE string,
+          lv_exists_pernr TYPE pernr_d.
 
     " En merge: solo insertar infotipos que no existan aún
     LOOP AT is_employee-infotypes INTO DATA(ls_infty).
-      DATA(lv_table) = |PA{ ls_infty-infty }|.
+      lv_table = |PA{ ls_infty-infty }|.
+      CLEAR lv_exists_pernr.
       SELECT SINGLE pernr FROM (lv_table)
         WHERE pernr = @is_employee-pernr
-        INTO @DATA(lv_exists_pernr).
+        INTO @lv_exists_pernr.
 
       IF sy-subrc <> 0.
         " Infotipo no existe: insertar todos sus registros
