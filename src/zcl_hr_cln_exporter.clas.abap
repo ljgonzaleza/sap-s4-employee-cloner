@@ -306,7 +306,9 @@ CLASS zcl_hr_cln_exporter IMPLEMENTATION.
           LOOP AT lt_pcl1 INTO ls_pcl1.
             DATA(lv_xml_pcl1) = serialize_record( ls_pcl1 ).
             IF lv_xml_pcl1 IS NOT INITIAL.
-              APPEND |{ gc_sect_pcl1 }{ gc_file_sep }PCL1{ gc_file_sep }{ lv_pernr }{ gc_file_sep }{ ls_pcl1-relid }{ gc_file_sep }{ ls_pcl1-seqno }{ gc_file_sep }{ ls_pcl1-fpper }{ gc_file_sep }{ lv_xml_pcl1 }|
+              " RELID/SEQNO/FPPER ya van codificados dentro del XML — no acceder
+              " a campos específicos para evitar dependencia de la estructura PCL1
+              APPEND |{ gc_sect_pcl1 }{ gc_file_sep }PCL1{ gc_file_sep }{ lv_pernr }{ gc_file_sep }{ gc_file_sep }{ gc_file_sep }{ gc_file_sep }{ lv_xml_pcl1 }|
                 TO lt_lines.
               lv_cnt1 = lv_cnt1 + 1.
             ENDIF.
@@ -323,7 +325,7 @@ CLASS zcl_hr_cln_exporter IMPLEMENTATION.
           LOOP AT lt_pcl2 INTO ls_pcl2.
             DATA(lv_xml_pcl2) = serialize_record( ls_pcl2 ).
             IF lv_xml_pcl2 IS NOT INITIAL.
-              APPEND |{ gc_sect_pcl2 }{ gc_file_sep }PCL2{ gc_file_sep }{ lv_pernr }{ gc_file_sep }{ ls_pcl2-relid }{ gc_file_sep }{ ls_pcl2-seqno }{ gc_file_sep }{ ls_pcl2-fpper }{ gc_file_sep }{ lv_xml_pcl2 }|
+              APPEND |{ gc_sect_pcl2 }{ gc_file_sep }PCL2{ gc_file_sep }{ lv_pernr }{ gc_file_sep }{ gc_file_sep }{ gc_file_sep }{ gc_file_sep }{ lv_xml_pcl2 }|
                 TO lt_lines.
               lv_cnt2 = lv_cnt2 + 1.
             ENDIF.
