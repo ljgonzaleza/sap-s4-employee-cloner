@@ -118,7 +118,8 @@ CLASS zcl_hr_cln_exporter IMPLEMENTATION.
 
     DATA(lv_len) = strlen( lv_dir ).
     IF lv_len > 0.
-      DATA(lv_last) = lv_dir+lv_len-1(1).
+      DATA(lv_off) = lv_len - 1.
+      DATA(lv_last) = lv_dir+lv_off(1).
       IF lv_last <> '\' AND lv_last <> '/'.
         lv_dir = lv_dir && `\`.
       ENDIF.
@@ -255,7 +256,8 @@ CLASS zcl_hr_cln_exporter IMPLEMENTATION.
 
         DATA(lv_len_temp) = strlen( lv_temp_dir ).
         IF lv_len_temp > 0.
-          DATA(lv_last_temp) = lv_temp_dir+lv_len_temp-1(1).
+          DATA(lv_off_temp) = lv_len_temp - 1.
+          DATA(lv_last_temp) = lv_temp_dir+lv_off_temp(1).
           IF lv_last_temp <> '\' AND lv_last_temp <> '/'.
             lv_temp_dir = lv_temp_dir && `\`.
           ENDIF.
