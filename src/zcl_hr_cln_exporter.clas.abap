@@ -308,9 +308,8 @@ CLASS zcl_hr_cln_exporter IMPLEMENTATION.
       EXCEPTIONS
         cntl_error           = 1
         error_no_gui         = 2
-        wrong_parameter      = 3
-        not_supported_by_gui = 4
-        OTHERS               = 5
+        not_supported_by_gui = 3
+        OTHERS               = 4
     ).
 
     IF sy-subrc <> 0.
