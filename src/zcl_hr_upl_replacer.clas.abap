@@ -65,13 +65,6 @@ CLASS zcl_hr_upl_replacer DEFINITION PUBLIC CREATE PUBLIC.
       RETURNING
         VALUE(rv_ok) TYPE abap_bool.
 
-    " Leer lista de infotipos con datos para un PERNR (tabla T582A)
-    METHODS get_infoty_list_for_pernr
-      IMPORTING
-        iv_pernr      TYPE pernr_d
-      RETURNING
-        VALUE(rt_list) TYPE STANDARD TABLE.
-
 ENDCLASS.
 
 CLASS zcl_hr_upl_replacer IMPLEMENTATION.
@@ -153,39 +146,42 @@ CLASS zcl_hr_upl_replacer IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD delete_all_infotypes.
+    DATA: lo_data  TYPE REF TO data,
+          lv_table TYPE string,
+          lv_subty TYPE subty,
+          lv_begda TYPE begda,
+          lv_endda TYPE endda,
+          lv_seqnr TYPE pa_seqnr.
+
+    FIELD-SYMBOLS: <lt_recs> TYPE STANDARD TABLE,
+                   <ls_rec>  TYPE any,
+                   <f>       TYPE any.
+
     rv_ok = abap_true.
 
     IF iv_simul = abap_true.
       RETURN.
     ENDIF.
 
-    " Leer infotipos con registros para este PERNR desde T582A
     SELECT DISTINCT infty
       FROM t582a
       WHERE infty BETWEEN '0000' AND '9999'
       INTO TABLE @DATA(lt_infty).
 
     LOOP AT lt_infty INTO DATA(lv_infty).
-      DATA(lv_table) = |PA{ lv_infty }|.
+      lv_table = |PA{ lv_infty }|.
 
       TRY.
-          " Leer registros existentes
-          DATA lo_data TYPE REF TO data.
           CREATE DATA lo_data TYPE STANDARD TABLE OF (lv_table).
-          FIELD-SYMBOLS <lt_recs> TYPE STANDARD TABLE.
           ASSIGN lo_data->* TO <lt_recs>.
 
           SELECT * FROM (lv_table)
             WHERE pernr = @iv_pernr
             INTO CORRESPONDING FIELDS OF TABLE @<lt_recs>.
 
-          LOOP AT <lt_recs> ASSIGNING FIELD-SYMBOL(<ls_rec>).
-            DATA lv_subty  TYPE subty.
-            DATA lv_begda  TYPE begda.
-            DATA lv_endda  TYPE endda.
-            DATA lv_seqnr  TYPE pa_seqnr.
-
-            ASSIGN COMPONENT 'SUBTY' OF STRUCTURE <ls_rec> TO FIELD-SYMBOL(<f>). IF sy-subrc = 0. lv_subty = <f>. ENDIF.
+          LOOP AT <lt_recs> ASSIGNING <ls_rec>.
+            CLEAR: lv_subty, lv_begda, lv_endda, lv_seqnr.
+            ASSIGN COMPONENT 'SUBTY' OF STRUCTURE <ls_rec> TO <f>. IF sy-subrc = 0. lv_subty = <f>. ENDIF.
             ASSIGN COMPONENT 'BEGDA' OF STRUCTURE <ls_rec> TO <f>. IF sy-subrc = 0. lv_begda = <f>. ENDIF.
             ASSIGN COMPONENT 'ENDDA' OF STRUCTURE <ls_rec> TO <f>. IF sy-subrc = 0. lv_endda = <f>. ENDIF.
             ASSIGN COMPONENT 'SEQNR' OF STRUCTURE <ls_rec> TO <f>. IF sy-subrc = 0. lv_seqnr = <f>. ENDIF.
@@ -209,12 +205,15 @@ CLASS zcl_hr_upl_replacer IMPLEMENTATION.
     ENDLOOP.
 
     IF iv_del_tm = abap_true.
-      DELETE FROM teven   WHERE pernr = @iv_pernr.
+      DELETE FROM teven    WHERE pernr = @iv_pernr.
       DELETE FROM ptquoded WHERE pernr = @iv_pernr.
     ENDIF.
   ENDMETHOD.
 
   METHOD insert_teven_from_xml.
+    DATA: ls_teven TYPE teven,
+          lv_xstr  TYPE xstring.
+
     rv_ok = abap_true.
 
     IF iv_simul = abap_true.
@@ -223,8 +222,8 @@ CLASS zcl_hr_upl_replacer IMPLEMENTATION.
 
     LOOP AT it_xml_recs INTO DATA(lv_xml).
       TRY.
-          DATA(lv_xstr) = cl_abap_codepage=>convert_to( source = lv_xml codepage = 'UTF-8' ).
-          DATA ls_teven TYPE teven.
+          lv_xstr = cl_abap_codepage=>convert_to( source = lv_xml codepage = 'UTF-8' ).
+          CLEAR ls_teven.
           CALL TRANSFORMATION id SOURCE XML lv_xstr RESULT data = ls_teven.
           ls_teven-pernr = iv_pernr.
           INSERT teven FROM ls_teven.
@@ -236,6 +235,9 @@ CLASS zcl_hr_upl_replacer IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD insert_ptquoded_from_xml.
+    DATA: ls_ptq  TYPE ptquoded,
+          lv_xstr TYPE xstring.
+
     rv_ok = abap_true.
 
     IF iv_simul = abap_true.
@@ -244,8 +246,8 @@ CLASS zcl_hr_upl_replacer IMPLEMENTATION.
 
     LOOP AT it_xml_recs INTO DATA(lv_xml).
       TRY.
-          DATA(lv_xstr) = cl_abap_codepage=>convert_to( source = lv_xml codepage = 'UTF-8' ).
-          DATA ls_ptq TYPE ptquoded.
+          lv_xstr = cl_abap_codepage=>convert_to( source = lv_xml codepage = 'UTF-8' ).
+          CLEAR ls_ptq.
           CALL TRANSFORMATION id SOURCE XML lv_xstr RESULT data = ls_ptq.
           ls_ptq-pernr = iv_pernr.
           INSERT ptquoded FROM ls_ptq.
@@ -254,9 +256,6 @@ CLASS zcl_hr_upl_replacer IMPLEMENTATION.
           rv_ok = abap_false.
       ENDTRY.
     ENDLOOP.
-  ENDMETHOD.
-
-  METHOD get_infoty_list_for_pernr.
   ENDMETHOD.
 
 ENDCLASS.
