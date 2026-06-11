@@ -233,7 +233,7 @@ CLASS zcl_hr_cln_itype_base IMPLEMENTATION.
         lockindicator = space
         validityend   = lv_endda
         validitybegin = lv_begda
-        recordnumber  = space
+        recordnumber  = '000'
         record        = is_data
         operation     = iv_mode
         nocommit      = abap_true
