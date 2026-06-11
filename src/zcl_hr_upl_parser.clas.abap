@@ -29,10 +29,13 @@ CLASS zcl_hr_upl_parser DEFINITION PUBLIC CREATE PUBLIC.
 
     TYPES:
       BEGIN OF gty_employee,
-        pernr     TYPE pernr_d,
-        infotypes TYPE gtt_infotypes,
-        ptquoded  TYPE gtt_ptquoded,
-        teven     TYPE gtt_teven,
+        pernr        TYPE pernr_d,
+        infotypes    TYPE gtt_infotypes,
+        ptquoded     TYPE gtt_ptquoded,
+        teven        TYPE gtt_teven,
+        " XML serializado de TEVEN y PTQUODED (formato exportador)
+        teven_xml    TYPE string_table,
+        ptquoded_xml TYPE string_table,
       END OF gty_employee,
       gtt_employees TYPE STANDARD TABLE OF gty_employee WITH DEFAULT KEY.
 
@@ -55,51 +58,57 @@ ENDCLASS.
 CLASS zcl_hr_upl_parser IMPLEMENTATION.
 
   METHOD parse_csv.
-    DATA: lv_pernr_txt TYPE string,
-          lv_infty_txt TYPE string,
-          lv_pernr     TYPE pernr_d,
-          lv_infty     TYPE infty,
-          lv_rest      TYPE string.
+    " Formato del exportador: TYPE|INFTY|PERNR|SUBTY|BEGDA|ENDDA|SEQNR|XML_DATA
+    DATA: lv_type  TYPE string,
+          lv_infty TYPE infty,
+          lv_pernr TYPE pernr_d,
+          lv_subty TYPE string,
+          lv_begda TYPE string,
+          lv_endda TYPE string,
+          lv_seqnr TYPE string,
+          lv_xml   TYPE string.
 
     FIELD-SYMBOLS: <ls_employee> TYPE gty_employee,
                    <ls_infotype> TYPE gty_infotype_data.
 
     CLEAR: et_employees, ev_valid.
 
-    " Formato esperado: PERNR;INFTY;SEQNR;BEGDA;ENDDA;DATA
     LOOP AT it_lines INTO DATA(lv_line).
-      " Saltar cabecera
-      IF sy-tabix = 1 AND lv_line CS 'PERNR'.
+      " Ignorar líneas vacías y cabeceras (empiezan con #)
+      IF lv_line IS INITIAL OR lv_line(1) = '#'.
         CONTINUE.
       ENDIF.
 
-      IF lv_line IS INITIAL.
-        CONTINUE.
-      ENDIF.
+      " Separador pipe |
+      SPLIT lv_line AT '|' INTO lv_type lv_infty lv_pernr lv_subty lv_begda lv_endda lv_seqnr lv_xml.
 
-      SPLIT lv_line AT ';' INTO lv_pernr_txt lv_infty_txt lv_rest.
-      lv_pernr = lv_pernr_txt.
-      lv_infty = lv_infty_txt.
-
-      IF lv_pernr IS INITIAL.
+      IF lv_pernr IS INITIAL OR lv_xml IS INITIAL.
         CONTINUE.
       ENDIF.
 
       " Buscar o crear empleado
-      READ TABLE et_employees ASSIGNING <ls_employee>
-        WITH KEY pernr = lv_pernr.
+      READ TABLE et_employees ASSIGNING <ls_employee> WITH KEY pernr = lv_pernr.
       IF sy-subrc <> 0.
         APPEND VALUE #( pernr = lv_pernr ) TO et_employees ASSIGNING <ls_employee>.
       ENDIF.
 
-      " Buscar o crear grupo de infotipo
-      READ TABLE <ls_employee>-infotypes ASSIGNING <ls_infotype>
-        WITH KEY infty = lv_infty.
-      IF sy-subrc <> 0.
-        APPEND VALUE #( infty = lv_infty ) TO <ls_employee>-infotypes ASSIGNING <ls_infotype>.
-      ENDIF.
+      CASE lv_type.
+        WHEN 'PA'.
+          " Registros de infotipos PA
+          READ TABLE <ls_employee>-infotypes ASSIGNING <ls_infotype> WITH KEY infty = lv_infty.
+          IF sy-subrc <> 0.
+            APPEND VALUE #( infty = lv_infty ) TO <ls_employee>-infotypes ASSIGNING <ls_infotype>.
+          ENDIF.
+          APPEND lv_xml TO <ls_infotype>-records.
 
-      APPEND lv_line TO <ls_infotype>-records.
+        WHEN 'TEVEN'.
+          " Registros de tabla TEVEN (serializados como XML)
+          APPEND lv_xml TO <ls_employee>-teven_xml.
+
+        WHEN 'PTQUODED'.
+          " Registros de tabla PTQUODED (serializados como XML)
+          APPEND lv_xml TO <ls_employee>-ptquoded_xml.
+      ENDCASE.
     ENDLOOP.
 
     ev_valid = xsdbool( et_employees IS NOT INITIAL ).

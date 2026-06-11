@@ -17,49 +17,25 @@ CLASS zcl_hr_cln_exporter DEFINITION PUBLIC CREATE PUBLIC.
 
   PUBLIC SECTION.
 
-    TYPES:
-      BEGIN OF gty_export_data,
-        pernr TYPE pernr_d,
-        infty TYPE infty,
-        seqnr TYPE seqnr,
-        begda TYPE begda,
-        endda TYPE endda,
-        data  TYPE string,
-      END OF gty_export_data,
-      gtt_export_data TYPE STANDARD TABLE OF gty_export_data WITH DEFAULT KEY.
+    " Cabecera del archivo de exportación (primer campo de cada línea)
+    CONSTANTS: gc_sect_pa      TYPE string VALUE 'PA',
+               gc_sect_teven   TYPE string VALUE 'TEVEN',
+               gc_sect_ptquod  TYPE string VALUE 'PTQUODED',
+               gc_file_sep     TYPE string VALUE '|'.
 
     METHODS constructor
       IMPORTING
         io_logger TYPE REF TO zcl_hr_cln_logger OPTIONAL.
 
-    METHODS export_to_file
+    " Exportación completa de datos reales para carga en otro sistema/mandante
+    METHODS export_pernrs_to_file
       IMPORTING
-        it_results   TYPE zcl_hr_cln_orchestrator=>gtt_results
-        iv_format    TYPE char4 DEFAULT 'XLSX'
+        it_pernrs    TYPE STANDARD TABLE
+        iv_format    TYPE char4    DEFAULT 'CSV'
         iv_path      TYPE localfile OPTIONAL
         iv_split     TYPE abap_bool DEFAULT abap_false
       EXPORTING
         ev_file_path TYPE string.
-
-    METHODS export_infotype_data
-      IMPORTING
-        iv_pernr TYPE pernr_d
-        iv_infty TYPE infty
-        it_data  TYPE STANDARD TABLE.
-
-    METHODS generate_excel
-      IMPORTING
-        it_data     TYPE gtt_export_data
-        iv_filename TYPE string
-      EXPORTING
-        ev_filepath TYPE string.
-
-    METHODS generate_csv
-      IMPORTING
-        it_data     TYPE gtt_export_data
-        iv_filename TYPE string
-      EXPORTING
-        ev_filepath TYPE string.
 
     CLASS-METHODS download_to_pc
       IMPORTING
@@ -72,21 +48,23 @@ CLASS zcl_hr_cln_exporter DEFINITION PUBLIC CREATE PUBLIC.
 
     DATA: go_logger TYPE REF TO zcl_hr_cln_logger.
 
-    METHODS convert_to_json
+    " Leer TODOS los infotipos, TEVEN y PTQUODED de un PERNR y devolver líneas del archivo
+    METHODS read_pernr_all_data
+      IMPORTING
+        iv_pernr  TYPE pernr_d
+      EXPORTING
+        et_lines  TYPE string_table.
+
+    " Serializar cualquier estructura ABAP a XML de una línea (sin saltos de carro)
+    METHODS serialize_record
       IMPORTING
         is_data        TYPE any
       RETURNING
-        VALUE(rv_json) TYPE string.
+        VALUE(rv_xml)  TYPE string.
 
     METHODS get_default_path
       RETURNING
         VALUE(rv_path) TYPE string.
-
-  PRIVATE SECTION.
-
-    CONSTANTS:
-      gc_format_xlsx TYPE char4 VALUE 'XLSX',
-      gc_format_csv  TYPE char4 VALUE 'CSV'.
 
 ENDCLASS.
 
@@ -96,20 +74,14 @@ CLASS zcl_hr_cln_exporter IMPLEMENTATION.
     go_logger = io_logger.
   ENDMETHOD.
 
-  METHOD export_to_file.
-    DATA: lt_export_data TYPE gtt_export_data,
-          lv_filename    TYPE string,
-          lv_dir         TYPE string.
+  METHOD export_pernrs_to_file.
+    DATA: lt_all_lines TYPE string_table,
+          lt_pernr_lines TYPE string_table,
+          lv_dir       TYPE string,
+          lv_filename  TYPE string,
+          lv_pernr     TYPE pernr_d.
 
-    LOOP AT it_results INTO DATA(ls_result).
-      APPEND VALUE #(
-        pernr = ls_result-pernr_src
-        infty = '0000'
-        data  = |Origen: { ls_result-pernr_src }, Destino: { ls_result-pernr_tgt }|
-      ) TO lt_export_data.
-    ENDLOOP.
-
-    " Obtener y normalizar directorio base
+    " Normalizar directorio base
     IF iv_path IS NOT INITIAL.
       lv_dir = iv_path.
     ELSE.
@@ -125,84 +97,154 @@ CLASS zcl_hr_cln_exporter IMPLEMENTATION.
       ENDIF.
     ENDIF.
 
-    IF iv_split = abap_true.
-      LOOP AT it_results INTO ls_result.
-        lv_filename = |{ lv_dir }CLONE_{ ls_result-pernr_src }_{ sy-datum }.{ iv_format }|.
-        CASE iv_format.
-          WHEN gc_format_xlsx.
-            generate_excel( EXPORTING it_data = lt_export_data iv_filename = lv_filename IMPORTING ev_filepath = ev_file_path ).
-          WHEN gc_format_csv.
-            generate_csv( EXPORTING it_data = lt_export_data iv_filename = lv_filename IMPORTING ev_filepath = ev_file_path ).
-          WHEN OTHERS.
-            IF go_logger IS BOUND.
-              go_logger->log_warning( iv_msg = |Formato { iv_format } no soportado| ).
-            ENDIF.
-        ENDCASE.
-      ENDLOOP.
-    ELSE.
-      lv_filename = |{ lv_dir }CLONE_EXPORT_{ sy-datum }_{ sy-uzeit }.{ iv_format }|.
-      CASE iv_format.
-        WHEN gc_format_xlsx.
-          generate_excel( EXPORTING it_data = lt_export_data iv_filename = lv_filename IMPORTING ev_filepath = ev_file_path ).
-        WHEN gc_format_csv.
-          generate_csv( EXPORTING it_data = lt_export_data iv_filename = lv_filename IMPORTING ev_filepath = ev_file_path ).
-        WHEN OTHERS.
-          IF go_logger IS BOUND.
-            go_logger->log_warning( iv_msg = |Formato { iv_format } no soportado| ).
-          ENDIF.
-      ENDCASE.
+    " Cabecera del archivo
+    APPEND |#CLONER_EXPORT{ gc_file_sep }VERSION{ gc_file_sep }1.0{ gc_file_sep }DATE{ gc_file_sep }{ sy-datum }{ gc_file_sep }TIME{ gc_file_sep }{ sy-uzeit }|
+      TO lt_all_lines.
+    APPEND |#TYPE{ gc_file_sep }INFTY{ gc_file_sep }PERNR{ gc_file_sep }SUBTY{ gc_file_sep }BEGDA{ gc_file_sep }ENDDA{ gc_file_sep }SEQNR{ gc_file_sep }XML_DATA|
+      TO lt_all_lines.
+
+    LOOP AT it_pernrs INTO DATA(ls_row).
+      ASSIGN ls_row TO FIELD-SYMBOL(<lv_pernr_any>).
+      lv_pernr = <lv_pernr_any>.
+
+      CLEAR lt_pernr_lines.
+      read_pernr_all_data(
+        EXPORTING iv_pernr = lv_pernr
+        IMPORTING et_lines = lt_pernr_lines
+      ).
+      APPEND LINES OF lt_pernr_lines TO lt_all_lines.
+
+      IF iv_split = abap_true.
+        lv_filename = |{ lv_dir }CLONE_{ lv_pernr }_{ sy-datum }.csv|.
+        DATA(lv_xstr) = cl_abap_codepage=>convert_to(
+          source   = concat_lines_of( table = lt_all_lines sep = cl_abap_char_utilities=>cr_lf )
+          codepage = 'UTF-8' ).
+        download_to_pc( EXPORTING iv_filename = lv_filename iv_data = lv_xstr IMPORTING ev_path = ev_file_path ).
+        CLEAR lt_all_lines.
+      ENDIF.
+    ENDLOOP.
+
+    IF iv_split = abap_false AND lt_all_lines IS NOT INITIAL.
+      lv_filename = |{ lv_dir }CLONE_EXPORT_{ sy-datum }_{ sy-uzeit }.csv|.
+      DATA(lv_xstring) = cl_abap_codepage=>convert_to(
+        source   = concat_lines_of( table = lt_all_lines sep = cl_abap_char_utilities=>cr_lf )
+        codepage = 'UTF-8' ).
+      download_to_pc( EXPORTING iv_filename = lv_filename iv_data = lv_xstring IMPORTING ev_path = ev_file_path ).
     ENDIF.
 
     IF ev_file_path IS NOT INITIAL AND go_logger IS BOUND.
-      go_logger->log_success( iv_msg = |Archivo exportado: { ev_file_path }| ).
+      go_logger->log_success( iv_msg = |Exportación completada: { ev_file_path }| ).
     ENDIF.
   ENDMETHOD.
 
-  METHOD export_infotype_data.
-    DATA: lt_export TYPE gtt_export_data.
+  METHOD read_pernr_all_data.
+    DATA: lt_infty_list TYPE STANDARD TABLE OF infty WITH DEFAULT KEY,
+          lv_table      TYPE string,
+          lo_data       TYPE REF TO data,
+          lv_subty      TYPE string,
+          lv_begda      TYPE string,
+          lv_endda      TYPE string,
+          lv_seqnr      TYPE string.
 
-    LOOP AT it_data ASSIGNING FIELD-SYMBOL(<fs_row>).
-      APPEND VALUE #( pernr = iv_pernr infty = iv_infty data = convert_to_json( <fs_row> ) ) TO lt_export.
+    CLEAR et_lines.
+
+    " 1. Obtener lista de infotipos configurados en el sistema
+    SELECT DISTINCT infty
+      FROM t582a
+      WHERE infty BETWEEN '0000' AND '9999'
+      INTO TABLE @lt_infty_list.
+
+    " 2. Para cada infotipo, leer registros del empleado dinámicamente
+    LOOP AT lt_infty_list INTO DATA(lv_infty).
+      lv_table = |PA{ lv_infty }|.
+
+      TRY.
+          CREATE DATA lo_data TYPE STANDARD TABLE OF (lv_table).
+          FIELD-SYMBOLS <lt_recs> TYPE STANDARD TABLE.
+          ASSIGN lo_data->* TO <lt_recs>.
+
+          SELECT * FROM (lv_table)
+            WHERE pernr = @iv_pernr
+            INTO CORRESPONDING FIELDS OF TABLE @<lt_recs>.
+
+          LOOP AT <lt_recs> ASSIGNING FIELD-SYMBOL(<ls_rec>).
+            CLEAR: lv_subty, lv_begda, lv_endda, lv_seqnr.
+
+            ASSIGN COMPONENT 'SUBTY' OF STRUCTURE <ls_rec> TO FIELD-SYMBOL(<f>).
+            IF sy-subrc = 0. lv_subty = <f>. ENDIF.
+            ASSIGN COMPONENT 'BEGDA' OF STRUCTURE <ls_rec> TO <f>.
+            IF sy-subrc = 0. lv_begda = <f>. ENDIF.
+            ASSIGN COMPONENT 'ENDDA' OF STRUCTURE <ls_rec> TO <f>.
+            IF sy-subrc = 0. lv_endda = <f>. ENDIF.
+            ASSIGN COMPONENT 'SEQNR' OF STRUCTURE <ls_rec> TO <f>.
+            IF sy-subrc = 0. lv_seqnr = <f>. ENDIF.
+
+            DATA(lv_xml) = serialize_record( <ls_rec> ).
+            IF lv_xml IS NOT INITIAL.
+              APPEND |{ gc_sect_pa }{ gc_file_sep }{ lv_infty }{ gc_file_sep }{ iv_pernr }{ gc_file_sep }{ lv_subty }{ gc_file_sep }{ lv_begda }{ gc_file_sep }{ lv_endda }{ gc_file_sep }{ lv_seqnr }{ gc_file_sep }{ lv_xml }|
+                TO et_lines.
+            ENDIF.
+          ENDLOOP.
+        CATCH cx_root.
+          " Tabla no existe o error de lectura: omitir silenciosamente
+      ENDTRY.
     ENDLOOP.
-  ENDMETHOD.
 
-  METHOD generate_excel.
-    " Generación XLSX nativa pendiente (requiere ABAP2XLSX o
-    " transformación OpenXML). Se entrega CSV compatible con Excel.
-    DATA(lv_filename) = iv_filename.
-    REPLACE FIRST OCCURRENCE OF '.XLSX' IN lv_filename WITH '.csv'.
-    REPLACE FIRST OCCURRENCE OF '.xlsx' IN lv_filename WITH '.csv'.
+    " 3. TEVEN
+    TRY.
+        SELECT * FROM teven WHERE pernr = @iv_pernr INTO TABLE @DATA(lt_teven).
+        LOOP AT lt_teven INTO DATA(ls_teven).
+          DATA(lv_xml_tv) = serialize_record( ls_teven ).
+          IF lv_xml_tv IS NOT INITIAL.
+            APPEND |{ gc_sect_teven }{ gc_file_sep }TEVEN{ gc_file_sep }{ iv_pernr }{ gc_file_sep }{ gc_file_sep }{ ls_teven-begda }{ gc_file_sep }{ ls_teven-endda }{ gc_file_sep }{ gc_file_sep }{ lv_xml_tv }|
+              TO et_lines.
+          ENDIF.
+        ENDLOOP.
+      CATCH cx_root.
+    ENDTRY.
 
-    generate_csv(
-      EXPORTING it_data = it_data iv_filename = lv_filename
-      IMPORTING ev_filepath = ev_filepath
-    ).
+    " 4. PTQUODED
+    TRY.
+        SELECT * FROM ptquoded WHERE pernr = @iv_pernr INTO TABLE @DATA(lt_ptquoded).
+        LOOP AT lt_ptquoded INTO DATA(ls_ptq).
+          DATA(lv_xml_pq) = serialize_record( ls_ptq ).
+          IF lv_xml_pq IS NOT INITIAL.
+            APPEND |{ gc_sect_ptquod }{ gc_file_sep }PTQUODED{ gc_file_sep }{ iv_pernr }{ gc_file_sep }{ gc_file_sep }{ ls_ptq-datum }{ gc_file_sep }{ gc_file_sep }{ gc_file_sep }{ lv_xml_pq }|
+              TO et_lines.
+          ENDIF.
+        ENDLOOP.
+      CATCH cx_root.
+    ENDTRY.
 
     IF go_logger IS BOUND.
-      go_logger->log_warning(
-        iv_msg = |XLSX pendiente: se generó CSV { ev_filepath }|
+      go_logger->log_info(
+        iv_pernr_src = iv_pernr
+        iv_msg       = |PERNR { iv_pernr }: { lines( et_lines ) } registros exportados|
       ).
     ENDIF.
   ENDMETHOD.
 
-  METHOD generate_csv.
-    DATA: lt_csv      TYPE STANDARD TABLE OF string,
-          lv_csv_line TYPE string.
+  METHOD serialize_record.
+    DATA: lo_writer  TYPE REF TO cl_sxml_string_writer,
+          lv_xstring TYPE xstring.
 
-    lv_csv_line = 'PERNR;INFTY;SEQNR;BEGDA;ENDDA;DATA'.
-    APPEND lv_csv_line TO lt_csv.
+    TRY.
+        lo_writer = cl_sxml_string_writer=>create( type = if_sxml=>co_xt_xml10 ).
 
-    LOOP AT it_data INTO DATA(ls_row).
-      lv_csv_line = |{ ls_row-pernr };{ ls_row-infty };{ ls_row-seqnr };{ ls_row-begda };{ ls_row-endda };{ ls_row-data }|.
-      APPEND lv_csv_line TO lt_csv.
-    ENDLOOP.
+        CALL TRANSFORMATION id
+          SOURCE data = is_data
+          RESULT XML lo_writer.
 
-    DATA(lv_xstring) = cl_abap_codepage=>convert_to(
-      source   = concat_lines_of( table = lt_csv sep = cl_abap_char_utilities=>cr_lf )
-      codepage = 'UTF-8'
-    ).
+        lv_xstring = lo_writer->get_output( ).
+        rv_xml = cl_abap_codepage=>convert_from( lv_xstring ).
 
-    download_to_pc( EXPORTING iv_filename = iv_filename iv_data = lv_xstring IMPORTING ev_path = ev_filepath ).
+        " Eliminar saltos de línea para mantener un registro por fila
+        REPLACE ALL OCCURRENCES OF cl_abap_char_utilities=>cr_lf IN rv_xml WITH ''.
+        REPLACE ALL OCCURRENCES OF cl_abap_char_utilities=>newline IN rv_xml WITH ''.
+        REPLACE ALL OCCURRENCES OF cl_abap_char_utilities=>horizontal_tab IN rv_xml WITH ''.
+      CATCH cx_root.
+        rv_xml = ''.
+    ENDTRY.
   ENDMETHOD.
 
   METHOD download_to_pc.

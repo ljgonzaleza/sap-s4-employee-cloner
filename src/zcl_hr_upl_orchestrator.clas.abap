@@ -245,17 +245,32 @@ CLASS zcl_hr_upl_orchestrator IMPLEMENTATION.
       RETURN.
     ENDIF.
 
+    " Insertar infotipos (registros en formato XML serializado)
     LOOP AT is_employee-infotypes INTO DATA(ls_infty).
       IF go_replacer->insert_infotype(
-           iv_pernr = is_employee-pernr
-           iv_infty = ls_infty-infty
-           it_data  = ls_infty-records
-           iv_simul = is_params-simulation ) = abap_true.
+           iv_pernr    = is_employee-pernr
+           iv_infty    = ls_infty-infty
+           it_xml_recs = ls_infty-records
+           iv_simul    = is_params-simulation ) = abap_true.
         lv_ok = lv_ok + 1.
       ELSE.
         lv_er = lv_er + 1.
       ENDIF.
     ENDLOOP.
+
+    " Insertar TEVEN y PTQUODED si vienen en el archivo
+    IF is_employee-teven_xml IS NOT INITIAL.
+      go_replacer->insert_teven_from_xml(
+        iv_pernr    = is_employee-pernr
+        it_xml_recs = is_employee-teven_xml
+        iv_simul    = is_params-simulation ).
+    ENDIF.
+    IF is_employee-ptquoded_xml IS NOT INITIAL.
+      go_replacer->insert_ptquoded_from_xml(
+        iv_pernr    = is_employee-pernr
+        it_xml_recs = is_employee-ptquoded_xml
+        iv_simul    = is_params-simulation ).
+    ENDIF.
 
     rs_result = VALUE #(
       pernr      = is_employee-pernr
@@ -263,8 +278,8 @@ CLASS zcl_hr_upl_orchestrator IMPLEMENTATION.
       records_er = lv_er
       status     = COND #( WHEN lv_er = 0 THEN 'S' ELSE 'E' )
       message    = COND #( WHEN lv_er = 0
-                           THEN |Empleado nuevo creado exitosamente|
-                           ELSE |Errores al crear empleado nuevo| )
+                           THEN |Empleado cargado exitosamente|
+                           ELSE |Errores al cargar empleado| )
     ).
   ENDMETHOD.
 
@@ -272,16 +287,7 @@ CLASS zcl_hr_upl_orchestrator IMPLEMENTATION.
     DATA: lv_ok TYPE i,
           lv_er TYPE i.
 
-    SELECT SINGLE pernr
-      FROM pa0000
-     WHERE pernr = @is_employee-pernr
-      INTO @DATA(lv_exists).
-
-    IF sy-subrc <> 0.
-      rs_result = process_new( is_employee = is_employee is_params = is_params ).
-      RETURN.
-    ENDIF.
-
+    " Borrar datos existentes (infotipos + TM si se indica)
     IF go_replacer->delete_all_infotypes(
          iv_pernr  = is_employee-pernr
          iv_del_tm = is_params-del_tm
@@ -294,28 +300,30 @@ CLASS zcl_hr_upl_orchestrator IMPLEMENTATION.
       RETURN.
     ENDIF.
 
+    " Insertar nuevos registros
     LOOP AT is_employee-infotypes INTO DATA(ls_infty).
       IF go_replacer->insert_infotype(
-           iv_pernr = is_employee-pernr
-           iv_infty = ls_infty-infty
-           it_data  = ls_infty-records
-           iv_simul = is_params-simulation ) = abap_true.
+           iv_pernr    = is_employee-pernr
+           iv_infty    = ls_infty-infty
+           it_xml_recs = ls_infty-records
+           iv_simul    = is_params-simulation ) = abap_true.
         lv_ok = lv_ok + 1.
       ELSE.
         lv_er = lv_er + 1.
       ENDIF.
     ENDLOOP.
 
-    IF is_params-del_tm = abap_true.
-      go_replacer->insert_ptquoded(
-        iv_pernr = is_employee-pernr
-        it_data  = is_employee-ptquoded
-        iv_simul = is_params-simulation ).
-
-      go_replacer->insert_teven(
-        iv_pernr = is_employee-pernr
-        it_data  = is_employee-teven
-        iv_simul = is_params-simulation ).
+    IF is_employee-teven_xml IS NOT INITIAL.
+      go_replacer->insert_teven_from_xml(
+        iv_pernr    = is_employee-pernr
+        it_xml_recs = is_employee-teven_xml
+        iv_simul    = is_params-simulation ).
+    ENDIF.
+    IF is_employee-ptquoded_xml IS NOT INITIAL.
+      go_replacer->insert_ptquoded_from_xml(
+        iv_pernr    = is_employee-pernr
+        it_xml_recs = is_employee-ptquoded_xml
+        iv_simul    = is_params-simulation ).
     ENDIF.
 
     rs_result = VALUE #(
@@ -331,24 +339,25 @@ CLASS zcl_hr_upl_orchestrator IMPLEMENTATION.
     DATA: lv_ok TYPE i,
           lv_er TYPE i.
 
+    " En merge: solo insertar infotipos que no existan aún
     LOOP AT is_employee-infotypes INTO DATA(ls_infty).
-      LOOP AT ls_infty-records INTO DATA(ls_record).
-        IF go_replacer->record_exists(
-             iv_pernr = is_employee-pernr
-             iv_infty = ls_infty-infty
-             is_key   = ls_record ) = abap_false.
+      DATA(lv_table) = |PA{ ls_infty-infty }|.
+      SELECT SINGLE pernr FROM (lv_table)
+        WHERE pernr = @is_employee-pernr
+        INTO @DATA(lv_exists_pernr).
 
-          IF go_replacer->insert_single_record(
-               iv_pernr = is_employee-pernr
-               iv_infty = ls_infty-infty
-               is_data  = ls_record
-               iv_simul = is_params-simulation ) = abap_true.
-            lv_ok = lv_ok + 1.
-          ELSE.
-            lv_er = lv_er + 1.
-          ENDIF.
+      IF sy-subrc <> 0.
+        " Infotipo no existe: insertar todos sus registros
+        IF go_replacer->insert_infotype(
+             iv_pernr    = is_employee-pernr
+             iv_infty    = ls_infty-infty
+             it_xml_recs = ls_infty-records
+             iv_simul    = is_params-simulation ) = abap_true.
+          lv_ok = lv_ok + 1.
+        ELSE.
+          lv_er = lv_er + 1.
         ENDIF.
-      ENDLOOP.
+      ENDIF.
     ENDLOOP.
 
     rs_result = VALUE #(
@@ -356,7 +365,7 @@ CLASS zcl_hr_upl_orchestrator IMPLEMENTATION.
       records_ok = lv_ok
       records_er = lv_er
       status     = COND #( WHEN lv_er = 0 THEN 'S' ELSE 'W' )
-      message    = |Merge completado: { lv_ok } insertados, { lv_er } errores|
+      message    = |Merge completado: { lv_ok } infotipos insertados, { lv_er } errores|
     ).
   ENDMETHOD.
 

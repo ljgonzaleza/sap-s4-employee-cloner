@@ -167,10 +167,11 @@ CLASS zcl_hr_cln_orchestrator IMPLEMENTATION.
       APPEND ls_result TO lt_results.
     ENDLOOP.
 
+    " Exportar datos reales de los PERNRs a archivo para carga en otro sistema/mandante
     IF is_params-export_local = abap_true.
-      go_exporter->export_to_file(
+      go_exporter->export_pernrs_to_file(
         EXPORTING
-          it_results   = lt_results
+          it_pernrs    = lt_pernrs
           iv_format    = is_params-exp_format
           iv_path      = is_params-exp_path
           iv_split     = is_params-exp_split
