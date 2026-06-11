@@ -13,7 +13,7 @@
 *& @001   2026.06.10  —     Versión inicial                  *
 *&============================================================*
 
-CLASS zcl_hr_upl_orchestrator DEFINITION CREATE PUBLIC.
+CLASS zcl_hr_upl_orchestrator DEFINITION PUBLIC CREATE PUBLIC.
 
   PUBLIC SECTION.
 
@@ -36,7 +36,7 @@ CLASS zcl_hr_upl_orchestrator DEFINITION CREATE PUBLIC.
         records_ok TYPE i,
         records_er TYPE i,
       END OF gty_result,
-      gtt_results TYPE STANDARD TABLE OF gty_result.
+      gtt_results TYPE STANDARD TABLE OF gty_result WITH DEFAULT KEY.
 
     METHODS constructor.
 
@@ -55,13 +55,13 @@ CLASS zcl_hr_upl_orchestrator DEFINITION CREATE PUBLIC.
       go_validator   TYPE REF TO zcl_hr_upl_validator,
       go_logger      TYPE REF TO zcl_hr_upl_logger.
 
+    " RETURNING no se combina con EXPORTING: todo por EXPORTING
     METHODS read_file
       IMPORTING
-        is_params       TYPE gty_params
+        is_params    TYPE gty_params
       EXPORTING
-        et_employees    TYPE zcl_hr_upl_parser=>gtt_employees
-      RETURNING
-        VALUE(rv_valid) TYPE abap_bool.
+        et_employees TYPE zcl_hr_upl_parser=>gtt_employees
+        ev_valid     TYPE abap_bool.
 
     METHODS process_employee
       IMPORTING
@@ -115,11 +115,20 @@ CLASS zcl_hr_upl_orchestrator IMPLEMENTATION.
 
   METHOD execute.
     DATA: lt_employees TYPE zcl_hr_upl_parser=>gtt_employees,
-          ls_result    TYPE gty_result.
+          ls_result    TYPE gty_result,
+          lv_valid     TYPE abap_bool.
+
+    CLEAR et_results.
 
     go_logger->start_session( ).
 
-    IF read_file( EXPORTING is_params = is_params IMPORTING et_employees = lt_employees ) = abap_false.
+    read_file(
+      EXPORTING is_params    = is_params
+      IMPORTING et_employees = lt_employees
+                ev_valid     = lv_valid
+    ).
+
+    IF lv_valid = abap_false.
       APPEND VALUE #( status = 'E' message = 'Error leyendo archivo' ) TO et_results.
       RETURN.
     ENDIF.
@@ -156,66 +165,123 @@ CLASS zcl_hr_upl_orchestrator IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD read_file.
-    DATA: lt_raw_data TYPE STANDARD TABLE OF x255,
-          lv_filesize TYPE i.
+    DATA: lt_lines    TYPE string_table,
+          lt_raw_data TYPE STANDARD TABLE OF raw255,
+          lv_filesize TYPE i,
+          lv_xstring  TYPE xstring,
+          lv_filename TYPE string.
 
-    cl_gui_frontend_services=>gui_upload(
-      EXPORTING
-        filename                = is_params-path
-        filetype                = COND #( WHEN is_params-format = 'XLSX' THEN 'BIN' ELSE 'ASC' )
-      IMPORTING
-        filelength              = lv_filesize
-      CHANGING
-        data_tab                = lt_raw_data
-      EXCEPTIONS
-        file_open_error         = 1
-        file_read_error         = 2
-        no_batch                = 3
-        gui_refuse_filetransfer = 4
-        OTHERS                  = 14
-    ).
+    CLEAR: et_employees, ev_valid.
 
-    IF sy-subrc <> 0.
-      rv_valid = abap_false.
-      go_logger->log_error( iv_msg = |Error leyendo archivo: { sy-subrc }| ).
-      RETURN.
-    ENDIF.
+    lv_filename = is_params-path.
 
     CASE is_params-format.
-      WHEN 'XLSX'.
-        rv_valid = go_parser->parse_excel( it_data = lt_raw_data et_employees = et_employees ).
       WHEN 'CSV'.
-        rv_valid = go_parser->parse_csv( it_data = lt_raw_data et_employees = et_employees ).
+        cl_gui_frontend_services=>gui_upload(
+          EXPORTING
+            filename                = lv_filename
+            filetype                = 'ASC'
+            codepage                = '4110'
+          CHANGING
+            data_tab                = lt_lines
+          EXCEPTIONS
+            file_open_error         = 1
+            file_read_error         = 2
+            no_batch                = 3
+            gui_refuse_filetransfer = 4
+            OTHERS                  = 14
+        ).
+
+        IF sy-subrc <> 0.
+          go_logger->log_error( iv_msg = |Error leyendo archivo CSV: { sy-subrc }| ).
+          RETURN.
+        ENDIF.
+
+        go_parser->parse_csv(
+          EXPORTING it_lines     = lt_lines
+          IMPORTING et_employees = et_employees
+                    ev_valid     = ev_valid
+        ).
+
+      WHEN 'XLSX'.
+        cl_gui_frontend_services=>gui_upload(
+          EXPORTING
+            filename                = lv_filename
+            filetype                = 'BIN'
+          IMPORTING
+            filelength              = lv_filesize
+          CHANGING
+            data_tab                = lt_raw_data
+          EXCEPTIONS
+            file_open_error         = 1
+            file_read_error         = 2
+            no_batch                = 3
+            gui_refuse_filetransfer = 4
+            OTHERS                  = 14
+        ).
+
+        IF sy-subrc <> 0.
+          go_logger->log_error( iv_msg = |Error leyendo archivo XLSX: { sy-subrc }| ).
+          RETURN.
+        ENDIF.
+
+        lv_xstring = cl_bcs_convert=>xtab_to_xstring(
+          it_xtab = lt_raw_data
+          iv_size = lv_filesize
+        ).
+
+        go_parser->parse_excel(
+          EXPORTING iv_xstring   = lv_xstring
+          IMPORTING et_employees = et_employees
+                    ev_valid     = ev_valid
+        ).
+
       WHEN OTHERS.
-        rv_valid = abap_false.
+        ev_valid = abap_false.
     ENDCASE.
   ENDMETHOD.
 
   METHOD process_employee.
-    rs_result = SWITCH #( is_params-mode
-      WHEN gc_mode_new     THEN process_new(     is_employee = is_employee is_params = is_params )
-      WHEN gc_mode_replace THEN process_replace( is_employee = is_employee is_params = is_params )
-      WHEN gc_mode_merge   THEN process_merge(   is_employee = is_employee is_params = is_params )
-      ELSE VALUE #( pernr = is_employee-pernr status = 'E' message = |Modo inválido: { is_params-mode }| )
-    ).
+    CASE is_params-mode.
+      WHEN gc_mode_new.
+        rs_result = process_new( is_employee = is_employee is_params = is_params ).
+      WHEN gc_mode_replace.
+        rs_result = process_replace( is_employee = is_employee is_params = is_params ).
+      WHEN gc_mode_merge.
+        rs_result = process_merge( is_employee = is_employee is_params = is_params ).
+      WHEN OTHERS.
+        rs_result = VALUE #(
+          pernr   = is_employee-pernr
+          status  = 'E'
+          message = |Modo inválido: { is_params-mode }|
+        ).
+    ENDCASE.
   ENDMETHOD.
 
   METHOD process_new.
-    SELECT SINGLE pernr FROM pa0000 INTO @DATA(lv_exists) WHERE pernr = @is_employee-pernr.
+    DATA: lv_ok TYPE i,
+          lv_er TYPE i.
+
+    SELECT SINGLE pernr
+      FROM pa0000
+     WHERE pernr = @is_employee-pernr
+      INTO @DATA(lv_exists).
 
     IF sy-subrc = 0.
-      rs_result = VALUE #( pernr = is_employee-pernr status = 'W'
-                           message = |Empleado { is_employee-pernr } ya existe - omitido| ).
+      rs_result = VALUE #(
+        pernr   = is_employee-pernr
+        status  = 'W'
+        message = |Empleado { is_employee-pernr } ya existe - omitido|
+      ).
       RETURN.
     ENDIF.
 
-    DATA(lv_ok) = 0.
-    DATA(lv_er) = 0.
-
     LOOP AT is_employee-infotypes INTO DATA(ls_infty).
       IF go_replacer->insert_infotype(
-           iv_pernr = is_employee-pernr iv_infty = ls_infty-infty
-           it_data  = ls_infty-records  iv_simul  = is_params-simulation ) = abap_true.
+           iv_pernr = is_employee-pernr
+           iv_infty = ls_infty-infty
+           it_data  = ls_infty-records
+           iv_simul = is_params-simulation ) = abap_true.
         lv_ok = lv_ok + 1.
       ELSE.
         lv_er = lv_er + 1.
@@ -223,32 +289,48 @@ CLASS zcl_hr_upl_orchestrator IMPLEMENTATION.
     ENDLOOP.
 
     rs_result = VALUE #(
-      pernr      = is_employee-pernr  records_ok = lv_ok  records_er = lv_er
+      pernr      = is_employee-pernr
+      records_ok = lv_ok
+      records_er = lv_er
       status     = COND #( WHEN lv_er = 0 THEN 'S' ELSE 'E' )
-      message    = COND #( WHEN lv_er = 0 THEN 'Empleado nuevo creado exitosamente' ELSE 'Errores al crear empleado' )
+      message    = COND #( WHEN lv_er = 0
+                           THEN |Empleado nuevo creado exitosamente|
+                           ELSE |Errores al crear empleado nuevo| )
     ).
   ENDMETHOD.
 
   METHOD process_replace.
-    DATA(lv_ok) = 0.
-    DATA(lv_er) = 0.
+    DATA: lv_ok TYPE i,
+          lv_er TYPE i.
 
-    SELECT SINGLE pernr FROM pa0000 INTO @DATA(lv_exists) WHERE pernr = @is_employee-pernr.
+    SELECT SINGLE pernr
+      FROM pa0000
+     WHERE pernr = @is_employee-pernr
+      INTO @DATA(lv_exists).
+
     IF sy-subrc <> 0.
       rs_result = process_new( is_employee = is_employee is_params = is_params ).
       RETURN.
     ENDIF.
 
     IF go_replacer->delete_all_infotypes(
-         iv_pernr = is_employee-pernr iv_del_tm = is_params-del_tm iv_simul = is_params-simulation ) = abap_false.
-      rs_result = VALUE #( pernr = is_employee-pernr status = 'E' message = 'Error borrando datos existentes' ).
+         iv_pernr  = is_employee-pernr
+         iv_del_tm = is_params-del_tm
+         iv_simul  = is_params-simulation ) = abap_false.
+      rs_result = VALUE #(
+        pernr   = is_employee-pernr
+        status  = 'E'
+        message = |Error borrando datos existentes|
+      ).
       RETURN.
     ENDIF.
 
     LOOP AT is_employee-infotypes INTO DATA(ls_infty).
       IF go_replacer->insert_infotype(
-           iv_pernr = is_employee-pernr iv_infty = ls_infty-infty
-           it_data  = ls_infty-records  iv_simul  = is_params-simulation ) = abap_true.
+           iv_pernr = is_employee-pernr
+           iv_infty = ls_infty-infty
+           it_data  = ls_infty-records
+           iv_simul = is_params-simulation ) = abap_true.
         lv_ok = lv_ok + 1.
       ELSE.
         lv_er = lv_er + 1.
@@ -256,28 +338,42 @@ CLASS zcl_hr_upl_orchestrator IMPLEMENTATION.
     ENDLOOP.
 
     IF is_params-del_tm = abap_true.
-      go_replacer->insert_ptquoded( iv_pernr = is_employee-pernr it_data = is_employee-ptquoded iv_simul = is_params-simulation ).
-      go_replacer->insert_teven(    iv_pernr = is_employee-pernr it_data = is_employee-teven    iv_simul = is_params-simulation ).
+      go_replacer->insert_ptquoded(
+        iv_pernr = is_employee-pernr
+        it_data  = is_employee-ptquoded
+        iv_simul = is_params-simulation ).
+
+      go_replacer->insert_teven(
+        iv_pernr = is_employee-pernr
+        it_data  = is_employee-teven
+        iv_simul = is_params-simulation ).
     ENDIF.
 
     rs_result = VALUE #(
-      pernr      = is_employee-pernr  records_ok = lv_ok  records_er = lv_er
+      pernr      = is_employee-pernr
+      records_ok = lv_ok
+      records_er = lv_er
       status     = COND #( WHEN lv_er = 0 THEN 'S' ELSE 'W' )
       message    = |Empleado reemplazado: { lv_ok } OK, { lv_er } errores|
     ).
   ENDMETHOD.
 
   METHOD process_merge.
-    DATA(lv_ok) = 0.
-    DATA(lv_er) = 0.
+    DATA: lv_ok TYPE i,
+          lv_er TYPE i.
 
     LOOP AT is_employee-infotypes INTO DATA(ls_infty).
       LOOP AT ls_infty-records INTO DATA(ls_record).
         IF go_replacer->record_exists(
-             iv_pernr = is_employee-pernr iv_infty = ls_infty-infty is_key = ls_record ) = abap_false.
+             iv_pernr = is_employee-pernr
+             iv_infty = ls_infty-infty
+             is_key   = ls_record ) = abap_false.
+
           IF go_replacer->insert_single_record(
-               iv_pernr = is_employee-pernr iv_infty = ls_infty-infty
-               is_data  = ls_record         iv_simul = is_params-simulation ) = abap_true.
+               iv_pernr = is_employee-pernr
+               iv_infty = ls_infty-infty
+               is_data  = ls_record
+               iv_simul = is_params-simulation ) = abap_true.
             lv_ok = lv_ok + 1.
           ELSE.
             lv_er = lv_er + 1.
@@ -287,7 +383,9 @@ CLASS zcl_hr_upl_orchestrator IMPLEMENTATION.
     ENDLOOP.
 
     rs_result = VALUE #(
-      pernr      = is_employee-pernr  records_ok = lv_ok  records_er = lv_er
+      pernr      = is_employee-pernr
+      records_ok = lv_ok
+      records_er = lv_er
       status     = COND #( WHEN lv_er = 0 THEN 'S' ELSE 'W' )
       message    = |Merge completado: { lv_ok } insertados, { lv_er } errores|
     ).

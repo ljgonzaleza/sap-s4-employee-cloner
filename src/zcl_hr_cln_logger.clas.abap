@@ -13,7 +13,7 @@
 *& @001   2026.06.10  —     Versión inicial                  *
 *&============================================================*
 
-CLASS zcl_hr_cln_logger DEFINITION CREATE PUBLIC.
+CLASS zcl_hr_cln_logger DEFINITION PUBLIC CREATE PUBLIC.
 
   PUBLIC SECTION.
 
@@ -41,7 +41,7 @@ CLASS zcl_hr_cln_logger DEFINITION CREATE PUBLIC.
         clone_id  TYPE sysuuid_x16,
       END OF gty_log_entry.
 
-    TYPES: gtt_log_entries TYPE STANDARD TABLE OF gty_log_entry.
+    TYPES: gtt_log_entries TYPE STANDARD TABLE OF gty_log_entry WITH DEFAULT KEY.
 
     METHODS constructor
       IMPORTING
@@ -259,10 +259,15 @@ CLASS zcl_hr_cln_logger IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD save_to_database.
+    DATA: lt_handles TYPE bal_t_logh.
+
     IF gv_log_handle IS NOT INITIAL.
+      " CALL FUNCTION no acepta expresiones: usar variable
+      INSERT gv_log_handle INTO TABLE lt_handles.
+
       CALL FUNCTION 'BAL_DB_SAVE'
         EXPORTING
-          i_t_log_handle   = VALUE bal_t_logh( ( gv_log_handle ) )
+          i_t_log_handle   = lt_handles
         EXCEPTIONS
           log_not_found    = 1
           save_not_allowed = 2
@@ -293,19 +298,27 @@ CLASS zcl_hr_cln_logger IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD export_to_table.
-    DATA: lt_entries TYPE gtt_log_entries.
+    DATA: lt_entries    TYPE gtt_log_entries,
+          lt_db_entries TYPE STANDARD TABLE OF zhr_cln_log,
+          ls_db_entry   TYPE zhr_cln_log.
 
-    lt_entries = COND #( WHEN it_entries IS SUPPLIED THEN it_entries ELSE gt_log_entries ).
+    IF it_entries IS SUPPLIED.
+      lt_entries = it_entries.
+    ELSE.
+      lt_entries = gt_log_entries.
+    ENDIF.
 
     IF lt_entries IS INITIAL.
       RETURN.
     ENDIF.
 
-    DATA(lt_db_entries) = VALUE zhr_cln_log_t(
-      FOR ls_entry IN lt_entries ( CORRESPONDING #( ls_entry ) )
-    ).
+    LOOP AT lt_entries INTO DATA(ls_entry).
+      ls_db_entry = CORRESPONDING #( ls_entry ).
+      ls_db_entry-mandt = sy-mandt.
+      APPEND ls_db_entry TO lt_db_entries.
+    ENDLOOP.
 
-    INSERT zhr_cln_log FROM TABLE lt_db_entries.
+    INSERT zhr_cln_log FROM TABLE lt_db_entries ACCEPTING DUPLICATE KEYS.
   ENDMETHOD.
 
 ENDCLASS.

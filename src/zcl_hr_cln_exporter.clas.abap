@@ -13,7 +13,7 @@
 *& @001   2026.06.10  —     Versión inicial                  *
 *&============================================================*
 
-CLASS zcl_hr_cln_exporter DEFINITION CREATE PUBLIC.
+CLASS zcl_hr_cln_exporter DEFINITION PUBLIC CREATE PUBLIC.
 
   PUBLIC SECTION.
 
@@ -26,7 +26,7 @@ CLASS zcl_hr_cln_exporter DEFINITION CREATE PUBLIC.
         endda TYPE endda,
         data  TYPE string,
       END OF gty_export_data,
-      gtt_export_data TYPE STANDARD TABLE OF gty_export_data.
+      gtt_export_data TYPE STANDARD TABLE OF gty_export_data WITH DEFAULT KEY.
 
     METHODS constructor
       IMPORTING
@@ -150,35 +150,22 @@ CLASS zcl_hr_cln_exporter IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD generate_excel.
-    DATA: lo_xlsx    TYPE REF TO cl_xlsx_document,
-          lo_sheet   TYPE REF TO cl_xlsx_sheet,
-          lv_xstring TYPE xstring.
+    " Generación XLSX nativa pendiente (requiere ABAP2XLSX o
+    " transformación OpenXML). Se entrega CSV compatible con Excel.
+    DATA(lv_filename) = iv_filename.
+    REPLACE FIRST OCCURRENCE OF '.XLSX' IN lv_filename WITH '.csv'.
+    REPLACE FIRST OCCURRENCE OF '.xlsx' IN lv_filename WITH '.csv'.
 
-    get_default_path( ).
+    generate_csv(
+      EXPORTING it_data = it_data iv_filename = lv_filename
+      IMPORTING ev_filepath = ev_filepath
+    ).
 
-    TRY.
-        lo_xlsx  = cl_xlsx_document=>create_document( ).
-        lo_sheet = lo_xlsx->get_active_sheet( ).
-
-        lo_sheet->set_cell_value( iv_row = 1 iv_column = 1 iv_value = 'PERNR' ).
-        lo_sheet->set_cell_value( iv_row = 1 iv_column = 2 iv_value = 'INFTY' ).
-        lo_sheet->set_cell_value( iv_row = 1 iv_column = 3 iv_value = 'DATA' ).
-
-        LOOP AT it_data INTO DATA(ls_row).
-          DATA(lv_row) = sy-tabix + 1.
-          lo_sheet->set_cell_value( iv_row = lv_row iv_column = 1 iv_value = ls_row-pernr ).
-          lo_sheet->set_cell_value( iv_row = lv_row iv_column = 2 iv_value = ls_row-infty ).
-          lo_sheet->set_cell_value( iv_row = lv_row iv_column = 3 iv_value = ls_row-data ).
-        ENDLOOP.
-
-        lv_xstring = lo_xlsx->save( ).
-        download_to_pc( EXPORTING iv_filename = iv_filename iv_data = lv_xstring IMPORTING ev_path = ev_filepath ).
-
-      CATCH cx_xlsx_error INTO DATA(lx_xlsx).
-        IF go_logger IS BOUND.
-          go_logger->log_error( iv_msg = |Error generando Excel: { lx_xlsx->get_text( ) }| ).
-        ENDIF.
-    ENDTRY.
+    IF go_logger IS BOUND.
+      go_logger->log_warning(
+        iv_msg = |XLSX pendiente: se generó CSV { ev_filepath }|
+      ).
+    ENDIF.
   ENDMETHOD.
 
   METHOD generate_csv.
@@ -234,15 +221,13 @@ CLASS zcl_hr_cln_exporter IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD convert_to_json.
-    DATA: lr_data    TYPE REF TO data,
-          lo_writer  TYPE REF TO cl_sxml_string_writer,
+    DATA: lo_writer  TYPE REF TO cl_sxml_string_writer,
           lv_xstring TYPE xstring.
 
-    GET REFERENCE OF is_data INTO lr_data.
     lo_writer = cl_sxml_string_writer=>create( type = if_sxml=>co_xt_json ).
 
     CALL TRANSFORMATION id
-      SOURCE data = lr_data->*
+      SOURCE data = is_data
       RESULT XML lo_writer.
 
     lv_xstring = lo_writer->get_output( ).

@@ -14,26 +14,23 @@
 *&============================================================*
 
 CLASS zcl_hr_cln_itype_0002 DEFINITION
+  PUBLIC
   INHERITING FROM zcl_hr_cln_itype_base
   CREATE PUBLIC.
 
   PUBLIC SECTION.
 
-    CLASS-DATA: gc_infty TYPE infty VALUE '0002' READ-ONLY.
+    CONSTANTS: gc_infty TYPE infty VALUE '0002'.
 
     METHODS constructor
       IMPORTING
         io_logger TYPE REF TO zcl_hr_cln_logger OPTIONAL.
 
     METHODS clone REDEFINITION.
-    CLASS-METHODS supports_infty REDEFINITION.
-    CLASS-METHODS get_infty REDEFINITION.
+    METHODS supports_infty REDEFINITION.
+    METHODS get_infty REDEFINITION.
 
   PROTECTED SECTION.
-
-    CONSTANTS:
-      gc_field_cpf TYPE fieldname VALUE 'CPFNR',
-      gc_field_ced TYPE fieldname VALUE 'ICNUM'.
 
     METHODS clean_personal_ids
       IMPORTING
@@ -43,8 +40,8 @@ CLASS zcl_hr_cln_itype_0002 DEFINITION
 
     METHODS generate_dummy_id
       IMPORTING
-        iv_prefix   TYPE string
-        iv_original TYPE string
+        iv_prefix       TYPE string
+        iv_original     TYPE string
       RETURNING
         VALUE(rv_dummy) TYPE string.
 
@@ -67,14 +64,18 @@ CLASS zcl_hr_cln_itype_0002 IMPLEMENTATION.
   METHOD clone.
     DATA: lt_source TYPE STANDARD TABLE OF p0002,
           ls_target TYPE p0002,
-          ls_result TYPE gty_result.
+          ls_result TYPE gty_result,
+          lv_seqnr  TYPE seqnr,
+          lv_subrc  TYPE sysubrc.
 
     FIELD-SYMBOLS: <ls_source> TYPE p0002.
 
+    CLEAR: et_results, et_seqnr_map.
+
     SELECT * FROM pa0002
-      INTO TABLE @lt_source
      WHERE pernr = @iv_pernr_src
-     ORDER BY begda.
+     ORDER BY begda
+      INTO CORRESPONDING FIELDS OF TABLE @lt_source.
 
     IF sy-subrc <> 0.
       APPEND VALUE #(
@@ -92,6 +93,7 @@ CLASS zcl_hr_cln_itype_0002 IMPLEMENTATION.
         CONTINUE.
       ENDIF.
 
+      CLEAR ls_result.
       ls_target = <ls_source>.
 
       transform_record(
@@ -103,19 +105,26 @@ CLASS zcl_hr_cln_itype_0002 IMPLEMENTATION.
 
       IF is_params-simulation = abap_false.
 
-        DATA(lv_subrc) = write_target(
+        write_target(
           EXPORTING
             iv_infty = gc_infty
             is_data  = ls_target
-            iv_mode  = COND #( WHEN is_params-overwrite = abap_true THEN 'MOD' ELSE 'INS' )
+            iv_mode  = COND actio( WHEN is_params-overwrite = abap_true THEN 'MOD' ELSE 'INS' )
           IMPORTING
-            ev_seqnr = ls_result-seqnr
+            ev_seqnr = lv_seqnr
+            ev_subrc = lv_subrc
         ).
+
+        ls_result-seqnr = lv_seqnr.
 
         IF lv_subrc = 0.
           ls_result-status  = gc_status_success.
-          ls_result-message = |IT 0002 clonado exitosamente SEQNR { ls_result-seqnr }|.
-          APPEND VALUE #( infty = gc_infty seqnr_src = <ls_source>-seqnr seqnr_tgt = ls_result-seqnr ) TO et_seqnr_map.
+          ls_result-message = |IT 0002 clonado exitosamente SEQNR { lv_seqnr }|.
+
+          " Tabla hashed: usar INSERT, no APPEND
+          INSERT VALUE #( infty     = gc_infty
+                          seqnr_src = <ls_source>-seqnr
+                          seqnr_tgt = lv_seqnr ) INTO TABLE et_seqnr_map.
         ELSE.
           ls_result-status  = gc_status_error.
           ls_result-message = |Error al clonar IT 0002 SEQNR { <ls_source>-seqnr }|.
@@ -144,7 +153,11 @@ CLASS zcl_hr_cln_itype_0002 IMPLEMENTATION.
   METHOD clean_personal_ids.
     DATA: lv_mode TYPE char1.
 
-    SELECT SINGLE uniq_cpf_mode FROM zhr_cln_config INTO @lv_mode WHERE mandt = @sy-mandt.
+    " Cliente implícito: no se filtra MANDT en Open SQL
+    SELECT SINGLE uniq_cpf_mode
+      FROM zhr_cln_config
+      INTO @lv_mode.
+
     IF sy-subrc <> 0.
       lv_mode = 'L'.
     ENDIF.
@@ -153,7 +166,7 @@ CLASS zcl_hr_cln_itype_0002 IMPLEMENTATION.
     IF sy-subrc = 0 AND <lv_cpf> IS NOT INITIAL.
       CASE lv_mode.
         WHEN 'L'. CLEAR <lv_cpf>.
-        WHEN 'G'. <lv_cpf> = generate_dummy_id( iv_prefix = '999' iv_original = <lv_cpf> ).
+        WHEN 'G'. <lv_cpf> = generate_dummy_id( iv_prefix = `999` iv_original = CONV string( <lv_cpf> ) ).
       ENDCASE.
     ENDIF.
 
@@ -161,7 +174,7 @@ CLASS zcl_hr_cln_itype_0002 IMPLEMENTATION.
     IF sy-subrc = 0 AND <lv_icnum> IS NOT INITIAL.
       CASE lv_mode.
         WHEN 'L'. CLEAR <lv_icnum>.
-        WHEN 'G'. <lv_icnum> = generate_dummy_id( iv_prefix = '999' iv_original = <lv_icnum> ).
+        WHEN 'G'. <lv_icnum> = generate_dummy_id( iv_prefix = `999` iv_original = CONV string( <lv_icnum> ) ).
       ENDCASE.
     ENDIF.
 

@@ -16,22 +16,10 @@
 REPORT zhr_clone_in2 MESSAGE-ID zhr_cln.
 
 *--------------------------------------------------------------------*
-* Tipos
-*--------------------------------------------------------------------*
-TYPES:
-  BEGIN OF gty_upload_result,
-    pernr      TYPE pernr_d,
-    status     TYPE char1,
-    message    TYPE string,
-    records_ok TYPE i,
-    records_er TYPE i,
-  END OF gty_upload_result.
-
-*--------------------------------------------------------------------*
 * Variables globales
 *--------------------------------------------------------------------*
 DATA:
-  gt_results      TYPE STANDARD TABLE OF gty_upload_result,
+  gt_results      TYPE zcl_hr_upl_orchestrator=>gtt_results,
   go_orchestrator TYPE REF TO zcl_hr_upl_orchestrator.
 
 *--------------------------------------------------------------------*
@@ -71,10 +59,19 @@ START-OF-SELECTION.
 *&--------------------------------------------------------------------*
 FORM validate_input.
 
-  DATA: lv_file_exists TYPE abap_bool.
+  DATA: lv_file_exists TYPE abap_bool,
+        lv_actvt       TYPE char2,
+        lv_answer      TYPE char1.
+
+  " AUTHORITY-CHECK no acepta expresiones en FIELD: usar variable
+  IF p_simul = abap_true.
+    lv_actvt = '03'.
+  ELSE.
+    lv_actvt = '02'.
+  ENDIF.
 
   AUTHORITY-CHECK OBJECT 'ZHR_UPL'
-    ID 'ACTVT' FIELD COND #( WHEN p_simul = abap_true THEN '02' ELSE '01' ).
+    ID 'ACTVT' FIELD lv_actvt.
 
   IF sy-subrc <> 0.
     MESSAGE e000(zhr_cln) WITH 'Sin autorización para upload'.
@@ -83,7 +80,7 @@ FORM validate_input.
 
   cl_gui_frontend_services=>file_exist(
     EXPORTING
-      file                 = p_path
+      file                 = CONV string( p_path )
     RECEIVING
       result               = lv_file_exists
     EXCEPTIONS
@@ -95,23 +92,22 @@ FORM validate_input.
   ).
 
   IF lv_file_exists = abap_false.
-    MESSAGE e000(zhr_cln) WITH 'El archivo no existe en la ruta especificada'.
+    MESSAGE e000(zhr_cln) WITH 'El archivo no existe en la ruta indicada'.
   ENDIF.
 
-  IF p_format NOT IN ('XLSX', 'CSV').
+  IF NOT ( p_format = 'XLSX' OR p_format = 'CSV' ).
     MESSAGE e000(zhr_cln) WITH 'Formato debe ser XLSX o CSV'.
   ENDIF.
 
-  IF p_mode NOT IN ('N', 'R', 'M').
-    MESSAGE e000(zhr_cln) WITH 'Modo inválido: use N (Nuevos), R (Reemplazar) o M (Merge)'.
+  IF NOT ( p_mode = 'N' OR p_mode = 'R' OR p_mode = 'M' ).
+    MESSAGE e000(zhr_cln) WITH 'Modo inválido: N, R o M'.
   ENDIF.
 
   IF p_mode = 'R' AND p_simul = abap_false.
-    DATA(lv_answer) = '1'.
     CALL FUNCTION 'POPUP_TO_CONFIRM'
       EXPORTING
         titlebar              = 'Confirmación Requerida'
-        text_question         = 'Modo REEMPLAZAR borrará todos los datos existentes. ¿Continuar?'
+        text_question         = 'Modo REEMPLAZAR borrará los datos existentes. ¿Continuar?'
         text_button_1         = 'Sí'
         text_button_2         = 'No'
         default_button        = '2'
@@ -135,6 +131,10 @@ ENDFORM.
 *&--------------------------------------------------------------------*
 FORM execute_upload.
 
+  DATA: lv_total TYPE i,
+        lv_ok    TYPE i,
+        lv_err   TYPE i.
+
   DATA(ls_params) = VALUE zcl_hr_upl_orchestrator=>gty_params(
     path          = p_path
     format        = p_format
@@ -152,9 +152,14 @@ FORM execute_upload.
     IMPORTING et_results = gt_results
   ).
 
-  DATA(lv_total) = lines( gt_results ).
-  DATA(lv_ok)    = lines( FILTER #( gt_results WHERE status = 'S' ) ).
-  DATA(lv_err)   = lines( FILTER #( gt_results WHERE status = 'E' ) ).
+  lv_total = lines( gt_results ).
+
+  LOOP AT gt_results INTO DATA(ls_result).
+    CASE ls_result-status.
+      WHEN 'S'. lv_ok  = lv_ok + 1.
+      WHEN 'E'. lv_err = lv_err + 1.
+    ENDCASE.
+  ENDLOOP.
 
   MESSAGE s001(zhr_cln) WITH lv_total lv_ok lv_err.
 
@@ -178,7 +183,7 @@ FORM display_results.
         CHANGING  t_table      = gt_results
       ).
       lo_alv->get_functions( )->set_all( abap_true ).
-      lo_alv->get_columns( )->optimize( ).
+      lo_alv->get_columns( )->set_optimize( abap_true ).
       lo_alv->display( ).
 
     CATCH cx_salv_msg INTO DATA(lx_msg).

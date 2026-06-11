@@ -15,22 +15,13 @@
 
 REPORT zhr_clone_out2 MESSAGE-ID zhr_cln.
 
-*--------------------------------------------------------------------*
-* Tipos
-*--------------------------------------------------------------------*
-TYPES:
-  BEGIN OF gty_pernr_range,
-    sign   TYPE sign,
-    option TYPE option,
-    low    TYPE pernr_d,
-    high   TYPE pernr_d,
-  END OF gty_pernr_range.
+" Necesario para SELECT-OPTIONS ... FOR pernr-pernr
+TABLES: pernr.
 
 *--------------------------------------------------------------------*
 * Variables globales
 *--------------------------------------------------------------------*
 DATA:
-  gt_pernr_src    TYPE STANDARD TABLE OF gty_pernr_range,
   gt_results      TYPE zcl_hr_cln_orchestrator=>gtt_results,
   go_orchestrator TYPE REF TO zcl_hr_cln_orchestrator,
   gv_export_path  TYPE string,
@@ -110,12 +101,13 @@ FORM validate_input.
     MESSAGE e000(zhr_cln) WITH 'Debe seleccionar al menos un PERNR origen'.
   ENDIF.
 
-  IF p_exp = abap_true AND p_format NOT IN ('XLSX', 'CSV', 'JSON').
+  IF p_exp = abap_true AND
+     NOT ( p_format = 'XLSX' OR p_format = 'CSV' OR p_format = 'JSON' ).
     MESSAGE e000(zhr_cln) WITH 'Formato de exportación inválido'.
   ENDIF.
 
   IF p_shift < -365 OR p_shift > 365.
-    MESSAGE e000(zhr_cln) WITH 'Shift de fechas debe estar entre -365 y 365 días'.
+    MESSAGE e000(zhr_cln) WITH 'Shift de fechas: entre -365 y 365 días'.
   ENDIF.
 
 ENDFORM.
@@ -124,6 +116,10 @@ ENDFORM.
 *&      Form  EXECUTE_CLONE
 *&--------------------------------------------------------------------*
 FORM execute_clone.
+
+  DATA: lv_total TYPE i,
+        lv_ok    TYPE i,
+        lv_err   TYPE i.
 
   DATA(ls_params) = VALUE zcl_hr_cln_orchestrator=>gty_params(
     pernr_src    = s_pernr[]
@@ -153,12 +149,17 @@ FORM execute_clone.
               ev_export_path = gv_export_path
   ).
 
-  READ TABLE gt_results TRANSPORTING NO FIELDS WITH KEY status = 'E'.
-  gv_error_flag = xsdbool( sy-subrc = 0 ).
+  CLEAR gv_error_flag.
+  lv_total = lines( gt_results ).
 
-  DATA(lv_total) = lines( gt_results ).
-  DATA(lv_ok)    = lines( FILTER #( gt_results WHERE status = 'S' ) ).
-  DATA(lv_err)   = lines( FILTER #( gt_results WHERE status = 'E' ) ).
+  " FILTER requiere clave secundaria: contar con LOOP
+  LOOP AT gt_results INTO DATA(ls_result).
+    CASE ls_result-status.
+      WHEN 'S'. lv_ok  = lv_ok + 1.
+      WHEN 'E'. lv_err = lv_err + 1.
+                gv_error_flag = abap_true.
+    ENDCASE.
+  ENDLOOP.
 
   MESSAGE s001(zhr_cln) WITH lv_total lv_ok lv_err.
 
@@ -183,7 +184,7 @@ FORM display_alv.
       ).
 
       lo_alv->get_functions( )->set_all( abap_true ).
-      lo_alv->get_columns( )->optimize( ).
+      lo_alv->get_columns( )->set_optimize( abap_true ).
       lo_alv->display( ).
 
     CATCH cx_salv_msg INTO DATA(lx_msg).

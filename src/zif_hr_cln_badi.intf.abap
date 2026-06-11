@@ -30,22 +30,23 @@ INTERFACE zif_hr_cln_badi
       seqnr     TYPE seqnr,
     END OF gty_context.
 
+  " RETURNING no se puede combinar con CHANGING: se usa EXPORTING
   METHODS adjust_source_before_copy
     IMPORTING
-      is_context    TYPE gty_context
+      is_context TYPE gty_context
+    EXPORTING
+      ev_subrc   TYPE sysubrc
     CHANGING
-      cs_data       TYPE any
-    RETURNING
-      VALUE(rv_subrc) TYPE sysubrc.
+      cs_data    TYPE any.
 
   METHODS adjust_target_before_save
     IMPORTING
-      is_context    TYPE gty_context
-      is_source     TYPE any
+      is_context TYPE gty_context
+      is_source  TYPE any
+    EXPORTING
+      ev_subrc   TYPE sysubrc
     CHANGING
-      cs_target     TYPE any
-    RETURNING
-      VALUE(rv_subrc) TYPE sysubrc.
+      cs_target  TYPE any.
 
   METHODS skip_infotype
     IMPORTING
@@ -55,15 +56,15 @@ INTERFACE zif_hr_cln_badi
 
   METHODS after_infotype_copy
     IMPORTING
-      is_context    TYPE gty_context
-      iv_seqnr_tgt  TYPE seqnr
-      iv_success    TYPE abap_bool
+      is_context      TYPE gty_context
+      iv_seqnr_tgt    TYPE seqnr
+      iv_success      TYPE abap_bool
     RETURNING
       VALUE(rv_subrc) TYPE sysubrc.
 
   METHODS after_clone_complete
     IMPORTING
-      it_results    TYPE STANDARD TABLE
+      it_results      TYPE STANDARD TABLE
     RETURNING
       VALUE(rv_subrc) TYPE sysubrc.
 

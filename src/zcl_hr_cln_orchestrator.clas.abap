@@ -13,14 +13,17 @@
 *& @001   2026.06.10  —     Versión inicial                  *
 *&============================================================*
 
-CLASS zcl_hr_cln_orchestrator DEFINITION CREATE PUBLIC.
+CLASS zcl_hr_cln_orchestrator DEFINITION PUBLIC CREATE PUBLIC.
 
   PUBLIC SECTION.
 
+    TYPES: gtt_pernr_range TYPE RANGE OF pernr_d.
+    TYPES: gtt_infty       TYPE STANDARD TABLE OF infty WITH DEFAULT KEY.
+
     TYPES:
       BEGIN OF gty_params,
-        pernr_src    TYPE r_pernr,
-        pernr_tgt    TYPE r_pernr,
+        pernr_src    TYPE gtt_pernr_range,
+        pernr_tgt    TYPE gtt_pernr_range,
         bukrs        TYPE bukrs,
         werks        TYPE persa,
         btrtl        TYPE btrtl,
@@ -45,7 +48,7 @@ CLASS zcl_hr_cln_orchestrator DEFINITION CREATE PUBLIC.
         status    TYPE char1,
         message   TYPE string,
       END OF gty_result,
-      gtt_results TYPE STANDARD TABLE OF gty_result.
+      gtt_results TYPE STANDARD TABLE OF gty_result WITH DEFAULT KEY.
 
     METHODS constructor.
 
@@ -66,34 +69,34 @@ CLASS zcl_hr_cln_orchestrator DEFINITION CREATE PUBLIC.
       IMPORTING
         is_params       TYPE gty_params
       RETURNING
-        VALUE(rt_infty) TYPE STANDARD TABLE OF infty.
+        VALUE(rt_infty) TYPE gtt_infty.
 
   PROTECTED SECTION.
 
-    DATA: go_logger    TYPE REF TO zcl_hr_cln_logger,
-          go_exporter  TYPE REF TO zcl_hr_cln_exporter,
-          gt_handlers  TYPE STANDARD TABLE OF REF TO zcl_hr_cln_itype_base.
+    DATA: go_logger   TYPE REF TO zcl_hr_cln_logger,
+          go_exporter TYPE REF TO zcl_hr_cln_exporter,
+          gt_handlers TYPE STANDARD TABLE OF REF TO zcl_hr_cln_itype_base WITH DEFAULT KEY.
 
     METHODS initialize_handlers.
 
     METHODS process_employee
       IMPORTING
-        iv_pernr_src TYPE pernr_d
-        iv_pernr_tgt TYPE pernr_d
-        is_params    TYPE gty_params
+        iv_pernr_src     TYPE pernr_d
+        iv_pernr_tgt     TYPE pernr_d
+        is_params        TYPE gty_params
       RETURNING
         VALUE(rs_result) TYPE gty_result.
 
     METHODS determine_target_pernr
       IMPORTING
-        iv_pernr_src TYPE pernr_d
-        is_params    TYPE gty_params
+        iv_pernr_src        TYPE pernr_d
+        is_params           TYPE gty_params
       RETURNING
         VALUE(rv_pernr_tgt) TYPE pernr_d.
 
     METHODS check_authorizations
       IMPORTING
-        iv_pernr TYPE pernr_d
+        iv_pernr             TYPE pernr_d
       RETURNING
         VALUE(rv_authorized) TYPE abap_bool.
 
@@ -125,9 +128,11 @@ CLASS zcl_hr_cln_orchestrator IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD execute.
-    DATA: lt_results TYPE gtt_results,
-          ls_result  TYPE gty_result,
+    DATA: lt_results     TYPE gtt_results,
+          ls_result      TYPE gty_result,
           lv_export_path TYPE string.
+
+    CLEAR: et_results, ev_export_path.
 
     go_logger->start_session( gv_clone_id ).
 
@@ -137,17 +142,23 @@ CLASS zcl_hr_cln_orchestrator IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    LOOP AT is_params-pernr_src ASSIGNING FIELD-SYMBOL(<lv_pernr>).
-      IF check_authorizations( <lv_pernr> ) = abap_false.
+    " Resolver PERNRs reales que cumplen el rango de selección
+    SELECT DISTINCT pernr
+      FROM pa0000
+     WHERE pernr IN @is_params-pernr_src
+      INTO TABLE @DATA(lt_pernrs).
+
+    LOOP AT lt_pernrs INTO DATA(lv_pernr).
+      IF check_authorizations( lv_pernr ) = abap_false.
         go_logger->log_error(
-          iv_pernr_src = <lv_pernr>
-          iv_msg       = |Sin autorización para PERNR { <lv_pernr> }|
+          iv_pernr_src = lv_pernr
+          iv_msg       = |Sin autorización para PERNR { lv_pernr }|
         ).
         CONTINUE.
       ENDIF.
 
-      DATA(lv_pernr_tgt) = determine_target_pernr( iv_pernr_src = <lv_pernr> is_params = is_params ).
-      ls_result = process_employee( iv_pernr_src = <lv_pernr> iv_pernr_tgt = lv_pernr_tgt is_params = is_params ).
+      DATA(lv_pernr_tgt) = determine_target_pernr( iv_pernr_src = lv_pernr is_params = is_params ).
+      ls_result = process_employee( iv_pernr_src = lv_pernr iv_pernr_tgt = lv_pernr_tgt is_params = is_params ).
       APPEND ls_result TO lt_results.
     ENDLOOP.
 
@@ -183,14 +194,17 @@ CLASS zcl_hr_cln_orchestrator IMPLEMENTATION.
       RETURN.
     ENDIF.
 
+    " IN con lista de literales no existe en ABAP: comparación explícita
     IF is_params-export_local = abap_true AND
-       is_params-exp_format NOT IN ('XLSX', 'CSV', 'JSON').
+       NOT ( is_params-exp_format = 'XLSX' OR
+             is_params-exp_format = 'CSV'  OR
+             is_params-exp_format = 'JSON' ).
       rv_valid = abap_false.
     ENDIF.
   ENDMETHOD.
 
   METHOD get_infotype_list.
-    DATA: lt_infty TYPE STANDARD TABLE OF infty.
+    DATA: lt_infty TYPE gtt_infty.
 
     lt_infty = VALUE #(
       ( '0000' ) ( '0001' ) ( '0002' ) ( '0006' )
@@ -255,9 +269,13 @@ CLASS zcl_hr_cln_orchestrator IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD determine_target_pernr.
-    rv_pernr_tgt = COND #( WHEN is_params-pernr_tgt IS NOT INITIAL
-                            THEN is_params-pernr_tgt
-                            ELSE iv_pernr_src ).
+    " pernr_tgt es un rango: tomar el primer valor si existe
+    READ TABLE is_params-pernr_tgt INTO DATA(ls_tgt) INDEX 1.
+    IF sy-subrc = 0 AND ls_tgt-low IS NOT INITIAL.
+      rv_pernr_tgt = ls_tgt-low.
+    ELSE.
+      rv_pernr_tgt = iv_pernr_src.
+    ENDIF.
   ENDMETHOD.
 
   METHOD check_authorizations.
@@ -265,7 +283,7 @@ CLASS zcl_hr_cln_orchestrator IMPLEMENTATION.
       ID 'PERNR' FIELD iv_pernr
       ID 'ACTVT' FIELD '03'.
 
-    rv_authorized = COND #( WHEN sy-subrc = 0 THEN abap_true ELSE abap_false ).
+    rv_authorized = xsdbool( sy-subrc = 0 ).
   ENDMETHOD.
 
 ENDCLASS.

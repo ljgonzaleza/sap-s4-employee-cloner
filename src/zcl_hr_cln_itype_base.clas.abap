@@ -31,6 +31,8 @@ CLASS zcl_hr_cln_itype_base DEFINITION PUBLIC ABSTRACT CREATE PUBLIC.
         seqnr   TYPE seqnr,
       END OF gty_result.
 
+    TYPES: gtt_results TYPE STANDARD TABLE OF gty_result WITH DEFAULT KEY.
+
     TYPES:
       BEGIN OF gty_seqnr_map,
         infty     TYPE infty,
@@ -39,8 +41,6 @@ CLASS zcl_hr_cln_itype_base DEFINITION PUBLIC ABSTRACT CREATE PUBLIC.
       END OF gty_seqnr_map,
       gtt_seqnr_map TYPE HASHED TABLE OF gty_seqnr_map
         WITH UNIQUE KEY infty seqnr_src.
-
-    TYPES: gtt_results TYPE STANDARD TABLE OF gty_result.
 
     METHODS constructor
       IMPORTING
@@ -53,15 +53,16 @@ CLASS zcl_hr_cln_itype_base DEFINITION PUBLIC ABSTRACT CREATE PUBLIC.
         is_params    TYPE zhr_cln_params
       EXPORTING
         et_results   TYPE gtt_results
-        et_seqnr_map TYPE gtt_seqnr_map OPTIONAL.
+        et_seqnr_map TYPE gtt_seqnr_map.
 
-    CLASS-METHODS supports_infty
+    " Métodos de instancia: los estáticos no pueden redefinirse
+    METHODS supports_infty
       IMPORTING
-        iv_infty       TYPE infty
+        iv_infty            TYPE infty
       RETURNING
         VALUE(rv_supported) TYPE abap_bool.
 
-    CLASS-METHODS get_infty
+    METHODS get_infty
       RETURNING
         VALUE(rv_infty) TYPE infty.
 
@@ -78,8 +79,8 @@ CLASS zcl_hr_cln_itype_base DEFINITION PUBLIC ABSTRACT CREATE PUBLIC.
 
     METHODS validate_record
       IMPORTING
-        is_data      TYPE any
-        is_params    TYPE zhr_cln_params
+        is_data         TYPE any
+        is_params       TYPE zhr_cln_params
       RETURNING
         VALUE(rv_valid) TYPE abap_bool.
 
@@ -91,15 +92,15 @@ CLASS zcl_hr_cln_itype_base DEFINITION PUBLIC ABSTRACT CREATE PUBLIC.
       CHANGING
         cs_data      TYPE any.
 
+    " RETURNING no se combina con EXPORTING: ambos por EXPORTING
     METHODS write_target
       IMPORTING
-        iv_infty    TYPE infty
-        is_data     TYPE any
-        iv_mode     TYPE char1 DEFAULT 'N'
+        iv_infty TYPE infty
+        is_data  TYPE any
+        iv_mode  TYPE actio DEFAULT 'INS'
       EXPORTING
-        ev_seqnr    TYPE seqnr
-      RETURNING
-        VALUE(rv_subrc) TYPE sysubrc.
+        ev_seqnr TYPE seqnr
+        ev_subrc TYPE sysubrc.
 
     METHODS clean_technical_fields
       CHANGING
@@ -113,13 +114,7 @@ CLASS zcl_hr_cln_itype_base DEFINITION PUBLIC ABSTRACT CREATE PUBLIC.
 
   PRIVATE SECTION.
 
-    TYPES:
-      BEGIN OF lty_field_mapping,
-        field_src TYPE fieldname,
-        field_tgt TYPE fieldname,
-      END OF lty_field_mapping.
-
-    CLASS-DATA: lt_exclude_fields TYPE STANDARD TABLE OF fieldname.
+    CLASS-DATA: gt_exclude_fields TYPE STANDARD TABLE OF fieldname WITH DEFAULT KEY.
 
     CLASS-METHODS initialize_exclude_fields.
 
@@ -132,9 +127,17 @@ CLASS zcl_hr_cln_itype_base IMPLEMENTATION.
     initialize_exclude_fields( ).
   ENDMETHOD.
 
+  METHOD supports_infty.
+    rv_supported = abap_false.
+  ENDMETHOD.
+
+  METHOD get_infty.
+    CLEAR rv_infty.
+  ENDMETHOD.
+
   METHOD initialize_exclude_fields.
-    IF lt_exclude_fields IS INITIAL.
-      lt_exclude_fields = VALUE #(
+    IF gt_exclude_fields IS INITIAL.
+      gt_exclude_fields = VALUE #(
         ( 'PERNR' )
         ( 'AEDTM' )
         ( 'UNAME' )
@@ -148,10 +151,11 @@ CLASS zcl_hr_cln_itype_base IMPLEMENTATION.
   METHOD read_source.
     DATA(lv_tabname) = |PA{ iv_infty }|.
 
+    " En sintaxis estricta INTO va al final
     SELECT * FROM (lv_tabname)
-      INTO TABLE @et_data
      WHERE pernr = @iv_pernr
-     ORDER BY begda.
+     ORDER BY begda
+      INTO TABLE @et_data.
 
     IF sy-subrc <> 0.
       IF go_logger IS BOUND.
@@ -168,11 +172,8 @@ CLASS zcl_hr_cln_itype_base IMPLEMENTATION.
     rv_valid = abap_true.
 
     ASSIGN COMPONENT 'BEGDA' OF STRUCTURE is_data TO FIELD-SYMBOL(<lv_begda>).
-    IF sy-subrc = 0.
-      IF <lv_begda> IS INITIAL.
-        rv_valid = abap_false.
-        RETURN.
-      ENDIF.
+    IF sy-subrc = 0 AND <lv_begda> IS INITIAL.
+      rv_valid = abap_false.
     ENDIF.
   ENDMETHOD.
 
@@ -194,7 +195,10 @@ CLASS zcl_hr_cln_itype_base IMPLEMENTATION.
 
   METHOD write_target.
     DATA: lt_return TYPE STANDARD TABLE OF bapiret2,
+          ls_key    TYPE bapipakey,
           ls_data   TYPE p0001.
+
+    CLEAR: ev_seqnr, ev_subrc.
 
     ls_data = is_data.
 
@@ -212,17 +216,19 @@ CLASS zcl_hr_cln_itype_base IMPLEMENTATION.
         operation     = iv_mode
         nocommit      = abap_true
       IMPORTING
-        return          = lt_return
-        newrecordnumber = ev_seqnr.
+        return        = lt_return
+        key           = ls_key.
+
+    ev_seqnr = ls_key-seqnr.
 
     READ TABLE lt_return WITH KEY type = 'E' TRANSPORTING NO FIELDS.
-    rv_subrc = COND #( WHEN sy-subrc = 0 THEN 4 ELSE 0 ).
+    ev_subrc = COND #( WHEN sy-subrc = 0 THEN 4 ELSE 0 ).
   ENDMETHOD.
 
   METHOD clean_technical_fields.
     FIELD-SYMBOLS: <fs_field> TYPE any.
 
-    LOOP AT lt_exclude_fields INTO DATA(lv_field).
+    LOOP AT gt_exclude_fields INTO DATA(lv_field).
       ASSIGN COMPONENT lv_field OF STRUCTURE cs_data TO <fs_field>.
       IF sy-subrc = 0.
         CLEAR <fs_field>.
