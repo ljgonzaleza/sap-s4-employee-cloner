@@ -325,24 +325,6 @@ CLASS zcl_hr_cln_exporter IMPLEMENTATION.
     ENDIF.
   ENDMETHOD.
 
-  METHOD convert_to_json.
-    DATA: lo_writer  TYPE REF TO cl_sxml_string_writer,
-          lv_xstring TYPE xstring.
-
-    TRY.
-        lo_writer = cl_sxml_string_writer=>create( type = if_sxml=>co_xt_json ).
-
-        CALL TRANSFORMATION id
-          SOURCE data = is_data
-          RESULT XML lo_writer.
-
-        lv_xstring = lo_writer->get_output( ).
-        rv_json = cl_abap_codepage=>convert_from( lv_xstring ).
-      CATCH cx_root.
-        rv_json = |\{"error": "Error de serialización JSON"\}|.
-    ENDTRY.
-  ENDMETHOD.
-
   METHOD get_default_path.
     cl_gui_frontend_services=>get_temp_directory(
       CHANGING
