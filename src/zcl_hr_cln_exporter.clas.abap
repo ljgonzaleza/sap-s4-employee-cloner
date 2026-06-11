@@ -239,7 +239,7 @@ CLASS zcl_hr_cln_exporter IMPLEMENTATION.
       DATA: lv_temp_dir TYPE string,
             lv_name     TYPE string.
 
-      cl_gui_frontend_services=>get_temp_dir(
+      cl_gui_frontend_services=>get_temp_directory(
         CHANGING
           temp_dir             = lv_temp_dir
         EXCEPTIONS
@@ -300,7 +300,7 @@ CLASS zcl_hr_cln_exporter IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD get_default_path.
-    cl_gui_frontend_services=>get_temp_dir(
+    cl_gui_frontend_services=>get_temp_directory(
       CHANGING
         temp_dir             = rv_path
       EXCEPTIONS
