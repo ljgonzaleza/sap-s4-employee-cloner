@@ -120,7 +120,7 @@ CLASS zcl_hr_cln_exporter IMPLEMENTATION.
     IF lv_len > 0.
       DATA(lv_last) = lv_dir+lv_len-1(1).
       IF lv_last <> '\' AND lv_last <> '/'.
-        lv_dir = |{ lv_dir }\|.
+        lv_dir = lv_dir && `\`.
       ENDIF.
     ENDIF.
 
