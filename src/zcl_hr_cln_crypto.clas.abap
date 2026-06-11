@@ -50,15 +50,15 @@ CLASS zcl_hr_cln_crypto IMPLEMENTATION.
   METHOD crypt.
     " XOR byte a byte con clave rotante.
     " Para archivos de datos HR (típicamente < 5 MB) el rendimiento es aceptable.
-    DATA: lv_xkey  TYPE xstring,
-          lt_hex   TYPE string_table,
-          lv_len   TYPE i,
-          lv_klen  TYPE i,
-          lv_off   TYPE i,
-          lv_kidx  TYPE i,
-          lv_x1    TYPE x LENGTH 1,
-          lv_k1    TYPE x LENGTH 1,
-          lv_enc1  TYPE x LENGTH 1.
+    DATA: lv_xkey   TYPE xstring,
+          lv_result TYPE xstring,
+          lv_len    TYPE i,
+          lv_klen   TYPE i,
+          lv_off    TYPE i,
+          lv_kidx   TYPE i,
+          lv_x1     TYPE x LENGTH 1,
+          lv_k1     TYPE x LENGTH 1,
+          lv_enc1   TYPE x LENGTH 1.
 
     IF iv_data IS INITIAL.
       RETURN.
@@ -79,19 +79,18 @@ CLASS zcl_hr_cln_crypto IMPLEMENTATION.
       RETURN.
     ENDIF.
 
+    " Cifrado XOR byte a byte
     DO lv_len TIMES.
       lv_off  = sy-index - 1.
       lv_kidx = lv_off MOD lv_klen.
       lv_x1   = iv_data+lv_off(1).
       lv_k1   = lv_xkey+lv_kidx(1).
       lv_enc1 = lv_x1 BIT-XOR lv_k1.
-      " Convertir byte cifrado a representación hex de 2 chars
-      APPEND CONV string( lv_enc1 ) TO lt_hex.
+      " Concatenar byte cifrado al resultado
+      CONCATENATE lv_result lv_enc1 INTO lv_result IN BYTE MODE.
     ENDDO.
 
-    " concat_lines_of es O(n) — eficiente para concatenar tabla de strings
-    " CONV xstring( hex_string ) convierte representación hex a xstring
-    rv_result = CONV xstring( concat_lines_of( table = lt_hex sep = `` ) ).
+    rv_result = lv_result.
   ENDMETHOD.
 
   METHOD encrypt_for_file.
