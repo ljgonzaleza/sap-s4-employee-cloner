@@ -201,16 +201,26 @@ CLASS zcl_hr_cln_exporter IMPLEMENTATION.
     download_to_pc( EXPORTING iv_filename = iv_filename iv_data = lv_xstring IMPORTING ev_path = ev_filepath ).
   ENDMETHOD.
 
-  CLASS-METHOD download_to_pc.
+  METHOD download_to_pc.
+    DATA: lt_data   TYPE STANDARD TABLE OF x255,
+          lv_length TYPE i.
+
+    " Convertir xstring a tabla binaria
+    CALL FUNCTION 'SCMS_XSTRING_TO_BINARY'
+      EXPORTING
+        buffer        = iv_data
+      IMPORTING
+        output_length = lv_length
+      TABLES
+        binary_tab    = lt_data.
+
     cl_gui_frontend_services=>gui_download(
       EXPORTING
-        bin_filesize            = xstrlen( iv_data )
+        bin_filesize            = lv_length
         filename                = iv_filename
         filetype                = 'BIN'
-      IMPORTING
-        filelength              = DATA(lv_length)
       CHANGING
-        data_tab                = VALUE STANDARD TABLE OF x255( ( CONV x255( iv_data ) ) )
+        data_tab                = lt_data
       EXCEPTIONS
         file_write_error        = 1
         no_batch                = 2
