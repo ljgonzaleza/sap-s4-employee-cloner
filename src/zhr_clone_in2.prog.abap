@@ -27,13 +27,13 @@ DATA:
 *--------------------------------------------------------------------*
 SELECTION-SCREEN BEGIN OF BLOCK b01 WITH FRAME TITLE TEXT-001.
   PARAMETERS:
-    p_path   TYPE localfile OBLIGATORY,
+    p_path   TYPE localfile DEFAULT 'C:\temp\Infotipos_.csv' OBLIGATORY,
     p_format TYPE char4 DEFAULT 'CSV'.
 SELECTION-SCREEN END OF BLOCK b01.
 
 SELECTION-SCREEN BEGIN OF BLOCK b04 WITH FRAME TITLE TEXT-004.
   PARAMETERS:
-    p_clpath TYPE localfile.
+    p_clpath TYPE localfile DEFAULT 'C:\temp\Clusters_.csv'.
   SELECTION-SCREEN COMMENT /1(60) TEXT-c01.
 SELECTION-SCREEN END OF BLOCK b04.
 
@@ -66,23 +66,7 @@ START-OF-SELECTION.
 FORM validate_input.
 
   DATA: lv_file_exists TYPE abap_bool,
-        lv_actvt       TYPE char2,
         lv_answer      TYPE char1.
-
-  " AUTHORITY-CHECK no acepta expresiones en FIELD: usar variable
-  IF p_simul = abap_true.
-    lv_actvt = '03'.
-  ELSE.
-    lv_actvt = '02'.
-  ENDIF.
-
-  AUTHORITY-CHECK OBJECT 'ZHR_UPL'
-    ID 'ACTVT' FIELD lv_actvt.
-
-  IF sy-subrc <> 0.
-    MESSAGE e000(zhr_cln) WITH 'Sin autorización para upload'.
-    LEAVE PROGRAM.
-  ENDIF.
 
   cl_gui_frontend_services=>file_exist(
     EXPORTING
