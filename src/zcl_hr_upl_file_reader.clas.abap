@@ -80,6 +80,9 @@ CLASS zcl_hr_upl_file_reader IMPLEMENTATION.
       RETURN.
     ENDIF.
 
+    " Descifrar si el archivo viene encriptado por ZHR_CLONE_OUT2
+    lv_xstring = zcl_hr_cln_crypto=>decrypt_from_file( lv_xstring ).
+
     " Convertir binario a string de forma dump-proof
     TRY.
         lv_string = cl_abap_codepage=>convert_from(
