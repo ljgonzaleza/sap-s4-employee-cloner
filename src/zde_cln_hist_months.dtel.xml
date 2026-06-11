@@ -10,10 +10,10 @@
     <SCRLEN2>15</SCRLEN2>
     <SCRLEN3>25</SCRLEN3>
     <DDTEXT>Meses máximo histórico clonador HR</DDTEXT>
-    <REPTEXT>Meses hist.</REPTEXT>
+    <REPTEXT>Meses max</REPTEXT>
     <SCRTEXT_S>Meses</SCRTEXT_S>
-    <SCRTEXT_M>Meses histórico</SCRTEXT_M>
-    <SCRTEXT_L>Meses máximo histórico</SCRTEXT_L>
+    <SCRTEXT_M>Meses histor.</SCRTEXT_M>
+    <SCRTEXT_L>Meses max historico</SCRTEXT_L>
     <DTELMASTER>E</DTELMASTER>
     <DATATYPE>NUMC</DATATYPE>
     <LENG>000003</LENG>

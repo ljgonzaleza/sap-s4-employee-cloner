@@ -9,11 +9,11 @@
     <SCRLEN1>10</SCRLEN1>
     <SCRLEN2>15</SCRLEN2>
     <SCRLEN3>20</SCRLEN3>
-    <DDTEXT>Prefijo para IDs dummy clonador HR</DDTEXT>
-    <REPTEXT>Prefijo dummy</REPTEXT>
+    <DDTEXT>Prefijo IDs dummy clonador HR</DDTEXT>
+    <REPTEXT>Pref.dummy</REPTEXT>
     <SCRTEXT_S>Pref.dummy</SCRTEXT_S>
     <SCRTEXT_M>Prefijo dummy</SCRTEXT_M>
-    <SCRTEXT_L>Prefijo para IDs dummy</SCRTEXT_L>
+    <SCRTEXT_L>Prefijo IDs dummy</SCRTEXT_L>
     <DTELMASTER>E</DTELMASTER>
     <DATATYPE>CHAR</DATATYPE>
     <LENG>000010</LENG>
