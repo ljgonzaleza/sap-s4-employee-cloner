@@ -196,7 +196,7 @@ CLASS zcl_hr_cln_exporter IMPLEMENTATION.
         LOOP AT lt_teven INTO DATA(ls_teven).
           DATA(lv_xml_tv) = serialize_record( ls_teven ).
           IF lv_xml_tv IS NOT INITIAL.
-            APPEND |{ gc_sect_teven }{ gc_file_sep }TEVEN{ gc_file_sep }{ iv_pernr }{ gc_file_sep }{ gc_file_sep }{ ls_teven-begda }{ gc_file_sep }{ ls_teven-endda }{ gc_file_sep }{ gc_file_sep }{ lv_xml_tv }|
+            APPEND |{ gc_sect_teven }{ gc_file_sep }TEVEN{ gc_file_sep }{ iv_pernr }{ gc_file_sep }{ gc_file_sep }{ gc_file_sep }{ gc_file_sep }{ gc_file_sep }{ lv_xml_tv }|
               TO et_lines.
           ENDIF.
         ENDLOOP.
