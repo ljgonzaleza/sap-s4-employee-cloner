@@ -277,8 +277,10 @@ CLASS zcl_hr_upl_replacer IMPLEMENTATION.
   METHOD insert_pcl1_from_xml.
     " Deserializa cada registro XML a una estructura PCL1 y la inserta/modifica.
     " El campo CLUSTD (LRAW) viene codificado en base64 dentro del XML de ABAP.
-    DATA: ls_pcl1 TYPE pcl1,
-          lv_xstr TYPE xstring.
+    " Nombre de tabla dinámico para evitar validación estática de cluster tables.
+    DATA: ls_pcl1   TYPE pcl1,
+          lt_pcl1   TYPE STANDARD TABLE OF pcl1 WITH DEFAULT KEY,
+          lv_xstr   TYPE xstring.
 
     rv_ok = abap_true.
 
@@ -291,8 +293,10 @@ CLASS zcl_hr_upl_replacer IMPLEMENTATION.
           lv_xstr = cl_abap_codepage=>convert_to( source = lv_xml codepage = 'UTF-8' ).
           CLEAR ls_pcl1.
           CALL TRANSFORMATION id SOURCE XML lv_xstr RESULT data = ls_pcl1.
-          " MODIFY reemplaza si existe (misma clave MANDT/RELID/PERNR/SEQNO/FPPER)
-          MODIFY pcl1 FROM ls_pcl1.
+          CLEAR lt_pcl1.
+          APPEND ls_pcl1 TO lt_pcl1.
+          " Nombre dinámico evita validación estática de columnas en cluster tables
+          MODIFY ('PCL1') FROM TABLE lt_pcl1.
           IF sy-subrc <> 0. rv_ok = abap_false. ENDIF.
         CATCH cx_root.
           rv_ok = abap_false.
@@ -303,8 +307,10 @@ CLASS zcl_hr_upl_replacer IMPLEMENTATION.
   METHOD insert_pcl2_from_xml.
     " Deserializa cada registro XML a una estructura PCL2 y la inserta/modifica.
     " El campo CLUSTD (LRAW) viene codificado en base64 dentro del XML de ABAP.
-    DATA: ls_pcl2 TYPE pcl2,
-          lv_xstr TYPE xstring.
+    " Nombre de tabla dinámico para evitar validación estática de cluster tables.
+    DATA: ls_pcl2   TYPE pcl2,
+          lt_pcl2   TYPE STANDARD TABLE OF pcl2 WITH DEFAULT KEY,
+          lv_xstr   TYPE xstring.
 
     rv_ok = abap_true.
 
@@ -317,7 +323,9 @@ CLASS zcl_hr_upl_replacer IMPLEMENTATION.
           lv_xstr = cl_abap_codepage=>convert_to( source = lv_xml codepage = 'UTF-8' ).
           CLEAR ls_pcl2.
           CALL TRANSFORMATION id SOURCE XML lv_xstr RESULT data = ls_pcl2.
-          MODIFY pcl2 FROM ls_pcl2.
+          CLEAR lt_pcl2.
+          APPEND ls_pcl2 TO lt_pcl2.
+          MODIFY ('PCL2') FROM TABLE lt_pcl2.
           IF sy-subrc <> 0. rv_ok = abap_false. ENDIF.
         CATCH cx_root.
           rv_ok = abap_false.

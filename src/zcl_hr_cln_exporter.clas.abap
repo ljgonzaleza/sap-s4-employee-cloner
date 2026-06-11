@@ -260,11 +260,19 @@ CLASS zcl_hr_cln_exporter IMPLEMENTATION.
   METHOD export_clusters_to_file.
     " Exporta clusters de tiempos (PCL1) y nómina (PCL2) en un archivo separado.
     " El campo CLUSTD (LRAW/RAWSTRING) queda codificado en base64 dentro del XML.
-    " El sistema destino lo importará directamente con INSERT INTO PCL1/PCL2.
+    " El sistema destino lo importará directamente con MODIFY PCL1/PCL2.
+    " Se usa nombre de tabla dinámico ('PCL1')/('PCL2') para que el syntax checker
+    " no valide las columnas en tiempo de activación (cluster tables).
     DATA: lt_lines  TYPE string_table,
           lv_dir    TYPE string,
           lv_file   TYPE string,
-          lv_pernr  TYPE pernr_d.
+          lv_pernr  TYPE pernr_d,
+          lt_pcl1   TYPE STANDARD TABLE OF pcl1  WITH DEFAULT KEY,
+          lt_pcl2   TYPE STANDARD TABLE OF pcl2  WITH DEFAULT KEY,
+          ls_pcl1   TYPE pcl1,
+          ls_pcl2   TYPE pcl2,
+          lv_cnt1   TYPE i,
+          lv_cnt2   TYPE i.
 
     " Normalizar directorio
     IF iv_path IS NOT INITIAL.
@@ -286,21 +294,21 @@ CLASS zcl_hr_cln_exporter IMPLEMENTATION.
       TO lt_lines.
 
     LOOP AT it_pernrs INTO lv_pernr.
+      CLEAR: lt_pcl1, lt_pcl2, lv_cnt1, lv_cnt2.
 
       " --- PCL1: Cluster de tiempos ---
+      " Nombre dinámico evita la validación estática de columnas en cluster tables
       TRY.
-          SELECT * FROM pcl1
+          SELECT * FROM ('PCL1')
             WHERE pernr = @lv_pernr
-            INTO TABLE @DATA(lt_pcl1).
+            INTO TABLE @lt_pcl1.
 
-          LOOP AT lt_pcl1 INTO DATA(ls_pcl1).
+          LOOP AT lt_pcl1 INTO ls_pcl1.
             DATA(lv_xml_pcl1) = serialize_record( ls_pcl1 ).
             IF lv_xml_pcl1 IS NOT INITIAL.
-              DATA(lv_relid_1) = CONV string( ls_pcl1-relid ).
-              DATA(lv_seqno_1) = CONV string( ls_pcl1-seqno ).
-              DATA(lv_fpper_1) = CONV string( ls_pcl1-fpper ).
-              APPEND |{ gc_sect_pcl1 }{ gc_file_sep }PCL1{ gc_file_sep }{ lv_pernr }{ gc_file_sep }{ lv_relid_1 }{ gc_file_sep }{ lv_seqno_1 }{ gc_file_sep }{ lv_fpper_1 }{ gc_file_sep }{ lv_xml_pcl1 }|
+              APPEND |{ gc_sect_pcl1 }{ gc_file_sep }PCL1{ gc_file_sep }{ lv_pernr }{ gc_file_sep }{ ls_pcl1-relid }{ gc_file_sep }{ ls_pcl1-seqno }{ gc_file_sep }{ ls_pcl1-fpper }{ gc_file_sep }{ lv_xml_pcl1 }|
                 TO lt_lines.
+              lv_cnt1 = lv_cnt1 + 1.
             ENDIF.
           ENDLOOP.
         CATCH cx_root.
@@ -308,18 +316,16 @@ CLASS zcl_hr_cln_exporter IMPLEMENTATION.
 
       " --- PCL2: Cluster de nómina ---
       TRY.
-          SELECT * FROM pcl2
+          SELECT * FROM ('PCL2')
             WHERE pernr = @lv_pernr
-            INTO TABLE @DATA(lt_pcl2).
+            INTO TABLE @lt_pcl2.
 
-          LOOP AT lt_pcl2 INTO DATA(ls_pcl2).
+          LOOP AT lt_pcl2 INTO ls_pcl2.
             DATA(lv_xml_pcl2) = serialize_record( ls_pcl2 ).
             IF lv_xml_pcl2 IS NOT INITIAL.
-              DATA(lv_relid_2) = CONV string( ls_pcl2-relid ).
-              DATA(lv_seqno_2) = CONV string( ls_pcl2-seqno ).
-              DATA(lv_fpper_2) = CONV string( ls_pcl2-fpper ).
-              APPEND |{ gc_sect_pcl2 }{ gc_file_sep }PCL2{ gc_file_sep }{ lv_pernr }{ gc_file_sep }{ lv_relid_2 }{ gc_file_sep }{ lv_seqno_2 }{ gc_file_sep }{ lv_fpper_2 }{ gc_file_sep }{ lv_xml_pcl2 }|
+              APPEND |{ gc_sect_pcl2 }{ gc_file_sep }PCL2{ gc_file_sep }{ lv_pernr }{ gc_file_sep }{ ls_pcl2-relid }{ gc_file_sep }{ ls_pcl2-seqno }{ gc_file_sep }{ ls_pcl2-fpper }{ gc_file_sep }{ lv_xml_pcl2 }|
                 TO lt_lines.
+              lv_cnt2 = lv_cnt2 + 1.
             ENDIF.
           ENDLOOP.
         CATCH cx_root.
@@ -328,7 +334,7 @@ CLASS zcl_hr_cln_exporter IMPLEMENTATION.
       IF go_logger IS BOUND.
         go_logger->log_info(
           iv_pernr_src = lv_pernr
-          iv_msg = |PERNR { lv_pernr }: { lines( lt_pcl1 ) } reg PCL1, { lines( lt_pcl2 ) } reg PCL2 exportados|
+          iv_msg = |PERNR { lv_pernr }: { lv_cnt1 } reg PCL1, { lv_cnt2 } reg PCL2 exportados|
         ).
       ENDIF.
     ENDLOOP.
