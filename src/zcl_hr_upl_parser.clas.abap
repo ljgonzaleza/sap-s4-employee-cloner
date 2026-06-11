@@ -33,9 +33,10 @@ CLASS zcl_hr_upl_parser DEFINITION PUBLIC CREATE PUBLIC.
         infotypes    TYPE gtt_infotypes,
         ptquoded     TYPE gtt_ptquoded,
         teven        TYPE gtt_teven,
-        " XML serializado de TEVEN y PTQUODED (formato exportador)
         teven_xml    TYPE string_table,
         ptquoded_xml TYPE string_table,
+        pcl1_xml     TYPE string_table,
+        pcl2_xml     TYPE string_table,
       END OF gty_employee,
       gtt_employees TYPE STANDARD TABLE OF gty_employee WITH DEFAULT KEY.
 
@@ -45,6 +46,13 @@ CLASS zcl_hr_upl_parser DEFINITION PUBLIC CREATE PUBLIC.
       EXPORTING
         et_employees TYPE gtt_employees
         ev_valid     TYPE abap_bool.
+
+    " Parseo del archivo separado de clusters (PCL1/PCL2)
+    METHODS parse_clusters
+      IMPORTING
+        it_lines     TYPE string_table
+      CHANGING
+        ct_employees TYPE gtt_employees.
 
     METHODS parse_excel
       IMPORTING
@@ -112,6 +120,44 @@ CLASS zcl_hr_upl_parser IMPLEMENTATION.
     ENDLOOP.
 
     ev_valid = xsdbool( et_employees IS NOT INITIAL ).
+  ENDMETHOD.
+
+  METHOD parse_clusters.
+    " Parseo del archivo CLONE_CLUSTERS_*.dat generado por ZCL_HR_CLN_EXPORTER.
+    " Formato: TYPE|TABLE|PERNR|RELID|SEQNO|FPPER|XML_DATA
+    DATA: lv_type   TYPE string,
+          lv_table  TYPE string,
+          lv_pernr  TYPE pernr_d,
+          lv_relid  TYPE string,
+          lv_seqno  TYPE string,
+          lv_fpper  TYPE string,
+          lv_xml    TYPE string.
+
+    FIELD-SYMBOLS: <ls_emp> TYPE gty_employee.
+
+    LOOP AT it_lines INTO DATA(lv_line).
+      IF lv_line IS INITIAL OR lv_line(1) = '#'.
+        CONTINUE.
+      ENDIF.
+
+      SPLIT lv_line AT '|' INTO lv_type lv_table lv_pernr lv_relid lv_seqno lv_fpper lv_xml.
+
+      IF lv_pernr IS INITIAL OR lv_xml IS INITIAL.
+        CONTINUE.
+      ENDIF.
+
+      READ TABLE ct_employees ASSIGNING <ls_emp> WITH KEY pernr = lv_pernr.
+      IF sy-subrc <> 0.
+        APPEND VALUE #( pernr = lv_pernr ) TO ct_employees ASSIGNING <ls_emp>.
+      ENDIF.
+
+      CASE lv_type.
+        WHEN 'PCL1'.
+          APPEND lv_xml TO <ls_emp>-pcl1_xml.
+        WHEN 'PCL2'.
+          APPEND lv_xml TO <ls_emp>-pcl2_xml.
+      ENDCASE.
+    ENDLOOP.
   ENDMETHOD.
 
   METHOD parse_excel.

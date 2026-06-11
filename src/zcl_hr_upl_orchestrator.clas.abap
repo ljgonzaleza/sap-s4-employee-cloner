@@ -26,6 +26,7 @@ CLASS zcl_hr_upl_orchestrator DEFINITION PUBLIC CREATE PUBLIC.
         del_tm        TYPE abap_bool,
         commit_size   TYPE numc3,
         stop_on_error TYPE abap_bool,
+        cluster_path  TYPE localfile,
       END OF gty_params.
 
     TYPES:
@@ -114,14 +115,17 @@ CLASS zcl_hr_upl_orchestrator IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD execute.
-    DATA: lt_employees TYPE zcl_hr_upl_parser=>gtt_employees,
-          ls_result    TYPE gty_result,
-          lv_valid     TYPE abap_bool.
+    DATA: lt_employees  TYPE zcl_hr_upl_parser=>gtt_employees,
+          ls_result     TYPE gty_result,
+          lv_valid      TYPE abap_bool,
+          lt_clus_lines TYPE string_table,
+          lv_clus_valid TYPE abap_bool.
 
     CLEAR et_results.
 
     go_logger->start_session( ).
 
+    " Leer archivo principal de infotipos
     read_file(
       EXPORTING is_params    = is_params
       IMPORTING et_employees = lt_employees
@@ -136,6 +140,23 @@ CLASS zcl_hr_upl_orchestrator IMPLEMENTATION.
     IF go_validator->validate_structure( lt_employees ) = abap_false.
       APPEND VALUE #( status = 'E' message = 'Estructura de archivo inválida' ) TO et_results.
       RETURN.
+    ENDIF.
+
+    " Si se indicó archivo de clusters, enriquecer la estructura de empleados
+    IF is_params-cluster_path IS NOT INITIAL.
+      go_file_reader->read_csv(
+        EXPORTING iv_path  = is_params-cluster_path
+        IMPORTING et_lines = lt_clus_lines
+                  ev_valid = lv_clus_valid
+      ).
+      IF lv_clus_valid = abap_true.
+        go_parser->parse_clusters(
+          EXPORTING it_lines     = lt_clus_lines
+          CHANGING  ct_employees = lt_employees
+        ).
+      ELSE.
+        go_logger->log_error( iv_msg = |No se pudo leer archivo de clusters: { is_params-cluster_path }| ).
+      ENDIF.
     ENDIF.
 
     LOOP AT lt_employees INTO DATA(ls_employee).
@@ -258,7 +279,7 @@ CLASS zcl_hr_upl_orchestrator IMPLEMENTATION.
       ENDIF.
     ENDLOOP.
 
-    " Insertar TEVEN y PTQUODED si vienen en el archivo
+    " Insertar TEVEN, PTQUODED y clusters si vienen en el archivo
     IF is_employee-teven_xml IS NOT INITIAL.
       go_replacer->insert_teven_from_xml(
         iv_pernr    = is_employee-pernr
@@ -269,6 +290,16 @@ CLASS zcl_hr_upl_orchestrator IMPLEMENTATION.
       go_replacer->insert_ptquoded_from_xml(
         iv_pernr    = is_employee-pernr
         it_xml_recs = is_employee-ptquoded_xml
+        iv_simul    = is_params-simulation ).
+    ENDIF.
+    IF is_employee-pcl1_xml IS NOT INITIAL.
+      go_replacer->insert_pcl1_from_xml(
+        it_xml_recs = is_employee-pcl1_xml
+        iv_simul    = is_params-simulation ).
+    ENDIF.
+    IF is_employee-pcl2_xml IS NOT INITIAL.
+      go_replacer->insert_pcl2_from_xml(
+        it_xml_recs = is_employee-pcl2_xml
         iv_simul    = is_params-simulation ).
     ENDIF.
 
@@ -323,6 +354,16 @@ CLASS zcl_hr_upl_orchestrator IMPLEMENTATION.
       go_replacer->insert_ptquoded_from_xml(
         iv_pernr    = is_employee-pernr
         it_xml_recs = is_employee-ptquoded_xml
+        iv_simul    = is_params-simulation ).
+    ENDIF.
+    IF is_employee-pcl1_xml IS NOT INITIAL.
+      go_replacer->insert_pcl1_from_xml(
+        it_xml_recs = is_employee-pcl1_xml
+        iv_simul    = is_params-simulation ).
+    ENDIF.
+    IF is_employee-pcl2_xml IS NOT INITIAL.
+      go_replacer->insert_pcl2_from_xml(
+        it_xml_recs = is_employee-pcl2_xml
         iv_simul    = is_params-simulation ).
     ENDIF.
 

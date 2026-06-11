@@ -21,21 +21,31 @@ CLASS zcl_hr_cln_exporter DEFINITION PUBLIC CREATE PUBLIC.
     CONSTANTS: gc_sect_pa      TYPE string VALUE 'PA',
                gc_sect_teven   TYPE string VALUE 'TEVEN',
                gc_sect_ptquod  TYPE string VALUE 'PTQUODED',
+               gc_sect_pcl1    TYPE string VALUE 'PCL1',
+               gc_sect_pcl2    TYPE string VALUE 'PCL2',
                gc_file_sep     TYPE string VALUE '|'.
+
+    TYPES: gtt_pernrs TYPE STANDARD TABLE OF pernr_d WITH DEFAULT KEY.
 
     METHODS constructor
       IMPORTING
         io_logger TYPE REF TO zcl_hr_cln_logger OPTIONAL.
 
-    TYPES: gtt_pernrs TYPE STANDARD TABLE OF pernr_d WITH DEFAULT KEY.
-
-    " Exportación completa de datos reales para carga en otro sistema/mandante
+    " Exportación completa de infotipos, TEVEN y PTQUODED
     METHODS export_pernrs_to_file
       IMPORTING
         it_pernrs    TYPE gtt_pernrs
         iv_format    TYPE char4      DEFAULT 'CSV'
         iv_path      TYPE localfile  OPTIONAL
         iv_split     TYPE abap_bool  DEFAULT abap_false
+      EXPORTING
+        ev_file_path TYPE string.
+
+    " Exportación de clusters de tiempos (PCL1) y nómina (PCL2) en archivo separado
+    METHODS export_clusters_to_file
+      IMPORTING
+        it_pernrs    TYPE gtt_pernrs
+        iv_path      TYPE localfile  OPTIONAL
       EXPORTING
         ev_file_path TYPE string.
 
@@ -245,6 +255,96 @@ CLASS zcl_hr_cln_exporter IMPLEMENTATION.
       CATCH cx_root.
         rv_xml = ''.
     ENDTRY.
+  ENDMETHOD.
+
+  METHOD export_clusters_to_file.
+    " Exporta clusters de tiempos (PCL1) y nómina (PCL2) en un archivo separado.
+    " El campo CLUSTD (LRAW/RAWSTRING) queda codificado en base64 dentro del XML.
+    " El sistema destino lo importará directamente con INSERT INTO PCL1/PCL2.
+    DATA: lt_lines  TYPE string_table,
+          lv_dir    TYPE string,
+          lv_file   TYPE string,
+          lv_pernr  TYPE pernr_d.
+
+    " Normalizar directorio
+    IF iv_path IS NOT INITIAL.
+      lv_dir = iv_path.
+    ELSE.
+      lv_dir = get_default_path( ).
+    ENDIF.
+    DATA(lv_len) = strlen( lv_dir ).
+    IF lv_len > 0.
+      DATA(lv_off) = lv_len - 1.
+      IF lv_dir+lv_off(1) <> '\' AND lv_dir+lv_off(1) <> '/'.
+        lv_dir = lv_dir && `\`.
+      ENDIF.
+    ENDIF.
+
+    APPEND |#CLUSTER_EXPORT{ gc_file_sep }VERSION{ gc_file_sep }1.0{ gc_file_sep }DATE{ gc_file_sep }{ sy-datum }{ gc_file_sep }TIME{ gc_file_sep }{ sy-uzeit }|
+      TO lt_lines.
+    APPEND |#TYPE{ gc_file_sep }TABLE{ gc_file_sep }PERNR{ gc_file_sep }RELID{ gc_file_sep }SEQNO{ gc_file_sep }FPPER{ gc_file_sep }XML_DATA|
+      TO lt_lines.
+
+    LOOP AT it_pernrs INTO lv_pernr.
+
+      " --- PCL1: Cluster de tiempos ---
+      TRY.
+          SELECT * FROM pcl1
+            WHERE pernr = @lv_pernr
+            INTO TABLE @DATA(lt_pcl1).
+
+          LOOP AT lt_pcl1 INTO DATA(ls_pcl1).
+            DATA(lv_xml_pcl1) = serialize_record( ls_pcl1 ).
+            IF lv_xml_pcl1 IS NOT INITIAL.
+              DATA(lv_relid_1) = CONV string( ls_pcl1-relid ).
+              DATA(lv_seqno_1) = CONV string( ls_pcl1-seqno ).
+              DATA(lv_fpper_1) = CONV string( ls_pcl1-fpper ).
+              APPEND |{ gc_sect_pcl1 }{ gc_file_sep }PCL1{ gc_file_sep }{ lv_pernr }{ gc_file_sep }{ lv_relid_1 }{ gc_file_sep }{ lv_seqno_1 }{ gc_file_sep }{ lv_fpper_1 }{ gc_file_sep }{ lv_xml_pcl1 }|
+                TO lt_lines.
+            ENDIF.
+          ENDLOOP.
+        CATCH cx_root.
+      ENDTRY.
+
+      " --- PCL2: Cluster de nómina ---
+      TRY.
+          SELECT * FROM pcl2
+            WHERE pernr = @lv_pernr
+            INTO TABLE @DATA(lt_pcl2).
+
+          LOOP AT lt_pcl2 INTO DATA(ls_pcl2).
+            DATA(lv_xml_pcl2) = serialize_record( ls_pcl2 ).
+            IF lv_xml_pcl2 IS NOT INITIAL.
+              DATA(lv_relid_2) = CONV string( ls_pcl2-relid ).
+              DATA(lv_seqno_2) = CONV string( ls_pcl2-seqno ).
+              DATA(lv_fpper_2) = CONV string( ls_pcl2-fpper ).
+              APPEND |{ gc_sect_pcl2 }{ gc_file_sep }PCL2{ gc_file_sep }{ lv_pernr }{ gc_file_sep }{ lv_relid_2 }{ gc_file_sep }{ lv_seqno_2 }{ gc_file_sep }{ lv_fpper_2 }{ gc_file_sep }{ lv_xml_pcl2 }|
+                TO lt_lines.
+            ENDIF.
+          ENDLOOP.
+        CATCH cx_root.
+      ENDTRY.
+
+      IF go_logger IS BOUND.
+        go_logger->log_info(
+          iv_pernr_src = lv_pernr
+          iv_msg = |PERNR { lv_pernr }: { lines( lt_pcl1 ) } reg PCL1, { lines( lt_pcl2 ) } reg PCL2 exportados|
+        ).
+      ENDIF.
+    ENDLOOP.
+
+    lv_file = |{ lv_dir }CLONE_CLUSTERS_{ sy-datum }_{ sy-uzeit }.dat|.
+
+    DATA(lv_xstring) = cl_abap_codepage=>convert_to(
+      source   = concat_lines_of( table = lt_lines sep = cl_abap_char_utilities=>cr_lf )
+      codepage = 'UTF-8'
+    ).
+
+    download_to_pc( EXPORTING iv_filename = lv_file iv_data = lv_xstring IMPORTING ev_path = ev_file_path ).
+
+    IF ev_file_path IS NOT INITIAL AND go_logger IS BOUND.
+      go_logger->log_success( iv_msg = |Clusters exportados: { ev_file_path }| ).
+    ENDIF.
   ENDMETHOD.
 
   METHOD download_to_pc.

@@ -28,8 +28,14 @@ DATA:
 SELECTION-SCREEN BEGIN OF BLOCK b01 WITH FRAME TITLE TEXT-001.
   PARAMETERS:
     p_path   TYPE localfile OBLIGATORY,
-    p_format TYPE char4 DEFAULT 'XLSX'.
+    p_format TYPE char4 DEFAULT 'CSV'.
 SELECTION-SCREEN END OF BLOCK b01.
+
+SELECTION-SCREEN BEGIN OF BLOCK b04 WITH FRAME TITLE TEXT-004.
+  PARAMETERS:
+    p_clpath TYPE localfile OPTIONAL.
+  SELECTION-SCREEN COMMENT /1(60) TEXT-c01.
+SELECTION-SCREEN END OF BLOCK b04.
 
 SELECTION-SCREEN BEGIN OF BLOCK b02 WITH FRAME TITLE TEXT-002.
   PARAMETERS: p_mode TYPE char1 DEFAULT 'R'.
@@ -136,13 +142,14 @@ FORM execute_upload.
         lv_err   TYPE i.
 
   DATA(ls_params) = VALUE zcl_hr_upl_orchestrator=>gty_params(
-    path          = p_path
-    format        = p_format
-    mode          = p_mode
-    simulation    = p_simul
-    del_tm        = p_deltm
-    commit_size   = p_commit
-    stop_on_error = p_stop
+    path           = p_path
+    format         = p_format
+    mode           = p_mode
+    simulation     = p_simul
+    del_tm         = p_deltm
+    commit_size    = p_commit
+    stop_on_error  = p_stop
+    cluster_path   = p_clpath
   ).
 
   go_orchestrator = NEW zcl_hr_upl_orchestrator( ).
@@ -195,10 +202,12 @@ ENDFORM.
 *--------------------------------------------------------------------*
 * Textos (crear en SE38 → Ir a → Elementos de texto)
 *--------------------------------------------------------------------*
-* TEXT-001 = 'Archivo Origen'
+* TEXT-001 = 'Archivo Origen (Infotipos)'
 * TEXT-002 = 'Modo de Carga'
 * TEXT-003 = 'Opciones'
+* TEXT-004 = 'Archivo de Clusters (Opcional)'
 * TEXT-m01 = 'N = Solo Nuevos'
 * TEXT-m02 = 'R = Reemplazar (Borrar + Insertar)'
 * TEXT-m03 = 'M = Merge (Solo faltantes)'
+* TEXT-c01 = 'CLONE_CLUSTERS_*.dat generado por ZHR_CLONE_OUT2'
 *--------------------------------------------------------------------*

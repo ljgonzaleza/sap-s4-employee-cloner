@@ -169,6 +169,7 @@ CLASS zcl_hr_cln_orchestrator IMPLEMENTATION.
 
     " Exportar datos reales de los PERNRs a archivo para carga en otro sistema/mandante
     IF is_params-export_local = abap_true.
+      " Archivo principal: infotipos + TEVEN + PTQUODED
       go_exporter->export_pernrs_to_file(
         EXPORTING
           it_pernrs    = lt_pernrs
@@ -179,6 +180,19 @@ CLASS zcl_hr_cln_orchestrator IMPLEMENTATION.
           ev_file_path = lv_export_path
       ).
       ev_export_path = lv_export_path.
+
+      " Archivo separado: clusters de tiempos (PCL1) y nómina (PCL2)
+      DATA: lv_cluster_path TYPE string.
+      go_exporter->export_clusters_to_file(
+        EXPORTING
+          it_pernrs    = lt_pernrs
+          iv_path      = is_params-exp_path
+        IMPORTING
+          ev_file_path = lv_cluster_path
+      ).
+      IF lv_cluster_path IS NOT INITIAL.
+        go_logger->log_success( iv_msg = |Cluster exportado: { lv_cluster_path }| ).
+      ENDIF.
     ENDIF.
 
     go_logger->end_session( iv_save = abap_true ).

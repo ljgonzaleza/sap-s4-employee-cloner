@@ -54,6 +54,22 @@ CLASS zcl_hr_upl_replacer DEFINITION PUBLIC CREATE PUBLIC.
       RETURNING
         VALUE(rv_ok) TYPE abap_bool.
 
+    " Insertar registros PCL1 (cluster de tiempos) desde XMLs serializados
+    METHODS insert_pcl1_from_xml
+      IMPORTING
+        it_xml_recs  TYPE string_table
+        iv_simul     TYPE abap_bool DEFAULT abap_true
+      RETURNING
+        VALUE(rv_ok) TYPE abap_bool.
+
+    " Insertar registros PCL2 (cluster de nómina) desde XMLs serializados
+    METHODS insert_pcl2_from_xml
+      IMPORTING
+        it_xml_recs  TYPE string_table
+        iv_simul     TYPE abap_bool DEFAULT abap_true
+      RETURNING
+        VALUE(rv_ok) TYPE abap_bool.
+
   PRIVATE SECTION.
 
     " Deserializar XML a estructura dinámica y llamar HR_INFOTYPE_OPERATION
@@ -251,6 +267,57 @@ CLASS zcl_hr_upl_replacer IMPLEMENTATION.
           CALL TRANSFORMATION id SOURCE XML lv_xstr RESULT data = ls_ptq.
           ls_ptq-pernr = iv_pernr.
           INSERT ptquoded FROM ls_ptq.
+          IF sy-subrc <> 0. rv_ok = abap_false. ENDIF.
+        CATCH cx_root.
+          rv_ok = abap_false.
+      ENDTRY.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD insert_pcl1_from_xml.
+    " Deserializa cada registro XML a una estructura PCL1 y la inserta/modifica.
+    " El campo CLUSTD (LRAW) viene codificado en base64 dentro del XML de ABAP.
+    DATA: ls_pcl1 TYPE pcl1,
+          lv_xstr TYPE xstring.
+
+    rv_ok = abap_true.
+
+    IF iv_simul = abap_true.
+      RETURN.
+    ENDIF.
+
+    LOOP AT it_xml_recs INTO DATA(lv_xml).
+      TRY.
+          lv_xstr = cl_abap_codepage=>convert_to( source = lv_xml codepage = 'UTF-8' ).
+          CLEAR ls_pcl1.
+          CALL TRANSFORMATION id SOURCE XML lv_xstr RESULT data = ls_pcl1.
+          " MODIFY reemplaza si existe (misma clave MANDT/RELID/PERNR/SEQNO/FPPER)
+          MODIFY pcl1 FROM ls_pcl1.
+          IF sy-subrc <> 0. rv_ok = abap_false. ENDIF.
+        CATCH cx_root.
+          rv_ok = abap_false.
+      ENDTRY.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD insert_pcl2_from_xml.
+    " Deserializa cada registro XML a una estructura PCL2 y la inserta/modifica.
+    " El campo CLUSTD (LRAW) viene codificado en base64 dentro del XML de ABAP.
+    DATA: ls_pcl2 TYPE pcl2,
+          lv_xstr TYPE xstring.
+
+    rv_ok = abap_true.
+
+    IF iv_simul = abap_true.
+      RETURN.
+    ENDIF.
+
+    LOOP AT it_xml_recs INTO DATA(lv_xml).
+      TRY.
+          lv_xstr = cl_abap_codepage=>convert_to( source = lv_xml codepage = 'UTF-8' ).
+          CLEAR ls_pcl2.
+          CALL TRANSFORMATION id SOURCE XML lv_xstr RESULT data = ls_pcl2.
+          MODIFY pcl2 FROM ls_pcl2.
           IF sy-subrc <> 0. rv_ok = abap_false. ENDIF.
         CATCH cx_root.
           rv_ok = abap_false.
