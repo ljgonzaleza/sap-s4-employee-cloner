@@ -196,23 +196,45 @@ CLASS zcl_hr_cln_itype_base IMPLEMENTATION.
   METHOD write_target.
     DATA: lt_return TYPE STANDARD TABLE OF bapiret2,
           ls_key    TYPE bapipakey,
-          ls_data   TYPE p0001.
+          lv_pernr  TYPE pernr_d,
+          lv_subty  TYPE subty,
+          lv_endda  TYPE endda,
+          lv_begda  TYPE begda.
 
     CLEAR: ev_seqnr, ev_subrc.
 
-    ls_data = is_data.
+    " Leer campos clave dinámicamente de is_data para evitar type conflict o dump
+    ASSIGN COMPONENT 'PERNR' OF STRUCTURE is_data TO FIELD-SYMBOL(<lv_pernr>).
+    IF sy-subrc = 0.
+      lv_pernr = <lv_pernr>.
+    ENDIF.
+
+    ASSIGN COMPONENT 'SUBTY' OF STRUCTURE is_data TO FIELD-SYMBOL(<lv_subty>).
+    IF sy-subrc = 0.
+      lv_subty = <lv_subty>.
+    ENDIF.
+
+    ASSIGN COMPONENT 'ENDDA' OF STRUCTURE is_data TO FIELD-SYMBOL(<lv_endda>).
+    IF sy-subrc = 0.
+      lv_endda = <lv_endda>.
+    ENDIF.
+
+    ASSIGN COMPONENT 'BEGDA' OF STRUCTURE is_data TO FIELD-SYMBOL(<lv_begda>).
+    IF sy-subrc = 0.
+      lv_begda = <lv_begda>.
+    ENDIF.
 
     CALL FUNCTION 'HR_INFOTYPE_OPERATION'
       EXPORTING
         infty         = iv_infty
-        number        = ls_data-pernr
-        subtype       = ls_data-subty
+        number        = lv_pernr
+        subtype       = lv_subty
         objectid      = space
         lockindicator = space
-        validityend   = ls_data-endda
-        validitybegin = ls_data-begda
+        validityend   = lv_endda
+        validitybegin = lv_begda
         recordnumber  = space
-        record        = ls_data
+        record        = is_data
         operation     = iv_mode
         nocommit      = abap_true
       IMPORTING

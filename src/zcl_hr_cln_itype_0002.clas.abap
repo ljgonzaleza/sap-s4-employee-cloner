@@ -279,10 +279,12 @@ CLASS zcl_hr_cln_itype_0002 IMPLEMENTATION.
       <lv_rufnm> = ls_person-vorna.
     ENDIF.
 
-    " Iniciales
+    " Iniciales sin riesgo de CX_SY_RANGE_OUT_OF_BOUNDS si vorna/nachn estuvieran vacíos
     ASSIGN COMPONENT 'INITS' OF STRUCTURE cs_data TO FIELD-SYMBOL(<lv_inits>).
     IF sy-subrc = 0.
-      <lv_inits> = |{ ls_person-vorna(1) }{ ls_person-nachn(1) }|.
+      DATA(lv_v_char) = COND string( WHEN ls_person-vorna IS NOT INITIAL THEN ls_person-vorna(1) ELSE `` ).
+      DATA(lv_n_char) = COND string( WHEN ls_person-nachn IS NOT INITIAL THEN ls_person-nachn(1) ELSE `` ).
+      <lv_inits> = |{ lv_v_char }{ lv_n_char }|.
     ENDIF.
 
     IF go_logger IS BOUND.

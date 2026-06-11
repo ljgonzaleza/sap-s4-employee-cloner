@@ -58,7 +58,8 @@ CLASS zcl_hr_upl_parser IMPLEMENTATION.
     DATA: lv_pernr_txt TYPE string,
           lv_infty_txt TYPE string,
           lv_pernr     TYPE pernr_d,
-          lv_infty     TYPE infty.
+          lv_infty     TYPE infty,
+          lv_rest      TYPE string.
 
     FIELD-SYMBOLS: <ls_employee> TYPE gty_employee,
                    <ls_infotype> TYPE gty_infotype_data.
@@ -76,7 +77,7 @@ CLASS zcl_hr_upl_parser IMPLEMENTATION.
         CONTINUE.
       ENDIF.
 
-      SPLIT lv_line AT ';' INTO lv_pernr_txt lv_infty_txt DATA(lv_rest).
+      SPLIT lv_line AT ';' INTO lv_pernr_txt lv_infty_txt lv_rest.
       lv_pernr = lv_pernr_txt.
       lv_infty = lv_infty_txt.
 

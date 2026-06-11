@@ -64,37 +64,51 @@ CLASS zcl_hr_upl_file_reader IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD read_csv.
-    DATA: lv_filename TYPE string.
+    DATA: lv_xstring TYPE xstring,
+          lv_string  TYPE string.
 
     CLEAR: et_lines, ev_valid.
 
-    IF validate_file_exists( iv_path ) = abap_false OR
-       check_file_size( iv_path ) = abap_false.
+    " Leer el archivo en binario de forma 100% segura usando x255
+    read_binary(
+      EXPORTING iv_path    = iv_path
+      IMPORTING ev_xstring = lv_xstring
+                ev_valid   = ev_valid
+    ).
+
+    IF ev_valid = abap_false.
       RETURN.
     ENDIF.
 
-    lv_filename = iv_path.
+    " Convertir binario a string de forma dump-proof
+    TRY.
+        lv_string = cl_abap_codepage=>convert_from(
+          source   = lv_xstring
+          codepage = 'UTF-8'
+        ).
+      CATCH cx_root.
+        TRY.
+            cl_abap_conv_in_class=>create( )->convert(
+              EXPORTING input = lv_xstring
+              IMPORTING data  = lv_string
+            ).
+          CATCH cx_root.
+            ev_valid = abap_false.
+            RETURN.
+        ENDTRY.
+    ENDTRY.
 
-    cl_gui_frontend_services=>gui_upload(
-      EXPORTING
-        filename                = lv_filename
-        filetype                = 'ASC'
-        codepage                = '4110'
-      CHANGING
-        data_tab                = et_lines
-      EXCEPTIONS
-        file_open_error         = 1
-        file_read_error         = 2
-        no_batch                = 3
-        gui_refuse_filetransfer = 4
-        OTHERS                  = 14
-    ).
+    " Dividir el string por CR/LF o LF
+    SPLIT lv_string AT cl_abap_char_utilities=>cr_lf INTO TABLE et_lines.
+    IF et_lines IS INITIAL.
+      SPLIT lv_string AT cl_abap_char_utilities=>newline INTO TABLE et_lines.
+    ENDIF.
 
-    ev_valid = xsdbool( sy-subrc = 0 ).
+    ev_valid = abap_true.
   ENDMETHOD.
 
   METHOD read_binary.
-    DATA: lt_data     TYPE STANDARD TABLE OF raw255,
+    DATA: lt_data     TYPE STANDARD TABLE OF x255,
           lv_length   TYPE i,
           lv_filename TYPE string.
 

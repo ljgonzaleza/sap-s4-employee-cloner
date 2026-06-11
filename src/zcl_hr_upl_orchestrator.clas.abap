@@ -166,75 +166,44 @@ CLASS zcl_hr_upl_orchestrator IMPLEMENTATION.
 
   METHOD read_file.
     DATA: lt_lines    TYPE string_table,
-          lt_raw_data TYPE STANDARD TABLE OF raw255,
-          lv_filesize TYPE i,
-          lv_xstring  TYPE xstring,
-          lv_filename TYPE string.
+          lv_xstring  TYPE xstring.
 
     CLEAR: et_employees, ev_valid.
 
-    lv_filename = is_params-path.
-
     CASE is_params-format.
       WHEN 'CSV'.
-        cl_gui_frontend_services=>gui_upload(
-          EXPORTING
-            filename                = lv_filename
-            filetype                = 'ASC'
-            codepage                = '4110'
-          CHANGING
-            data_tab                = lt_lines
-          EXCEPTIONS
-            file_open_error         = 1
-            file_read_error         = 2
-            no_batch                = 3
-            gui_refuse_filetransfer = 4
-            OTHERS                  = 14
+        go_file_reader->read_csv(
+          EXPORTING iv_path  = is_params-path
+          IMPORTING et_lines = lt_lines
+                    ev_valid = ev_valid
         ).
 
-        IF sy-subrc <> 0.
-          go_logger->log_error( iv_msg = |Error leyendo archivo CSV: { sy-subrc }| ).
-          RETURN.
+        IF ev_valid = abap_true.
+          go_parser->parse_csv(
+            EXPORTING it_lines     = lt_lines
+            IMPORTING et_employees = et_employees
+                      ev_valid     = ev_valid
+          ).
+        ELSE.
+          go_logger->log_error( iv_msg = |Error leyendo archivo CSV| ).
         ENDIF.
-
-        go_parser->parse_csv(
-          EXPORTING it_lines     = lt_lines
-          IMPORTING et_employees = et_employees
-                    ev_valid     = ev_valid
-        ).
 
       WHEN 'XLSX'.
-        cl_gui_frontend_services=>gui_upload(
-          EXPORTING
-            filename                = lv_filename
-            filetype                = 'BIN'
-          IMPORTING
-            filelength              = lv_filesize
-          CHANGING
-            data_tab                = lt_raw_data
-          EXCEPTIONS
-            file_open_error         = 1
-            file_read_error         = 2
-            no_batch                = 3
-            gui_refuse_filetransfer = 4
-            OTHERS                  = 14
+        go_file_reader->read_binary(
+          EXPORTING iv_path    = is_params-path
+          IMPORTING ev_xstring = lv_xstring
+                    ev_valid   = ev_valid
         ).
 
-        IF sy-subrc <> 0.
-          go_logger->log_error( iv_msg = |Error leyendo archivo XLSX: { sy-subrc }| ).
-          RETURN.
+        IF ev_valid = abap_true.
+          go_parser->parse_excel(
+            EXPORTING iv_xstring   = lv_xstring
+            IMPORTING et_employees = et_employees
+                      ev_valid     = ev_valid
+          ).
+        ELSE.
+          go_logger->log_error( iv_msg = |Error leyendo archivo XLSX| ).
         ENDIF.
-
-        lv_xstring = cl_bcs_convert=>xtab_to_xstring(
-          it_xtab = lt_raw_data
-          iv_size = lv_filesize
-        ).
-
-        go_parser->parse_excel(
-          EXPORTING iv_xstring   = lv_xstring
-          IMPORTING et_employees = et_employees
-                    ev_valid     = ev_valid
-        ).
 
       WHEN OTHERS.
         ev_valid = abap_false.

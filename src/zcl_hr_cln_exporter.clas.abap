@@ -98,7 +98,8 @@ CLASS zcl_hr_cln_exporter IMPLEMENTATION.
 
   METHOD export_to_file.
     DATA: lt_export_data TYPE gtt_export_data,
-          lv_filename    TYPE string.
+          lv_filename    TYPE string,
+          lv_dir         TYPE string.
 
     LOOP AT it_results INTO DATA(ls_result).
       APPEND VALUE #(
@@ -108,9 +109,24 @@ CLASS zcl_hr_cln_exporter IMPLEMENTATION.
       ) TO lt_export_data.
     ENDLOOP.
 
+    " Obtener y normalizar directorio base
+    IF iv_path IS NOT INITIAL.
+      lv_dir = iv_path.
+    ELSE.
+      lv_dir = get_default_path( ).
+    ENDIF.
+
+    DATA(lv_len) = strlen( lv_dir ).
+    IF lv_len > 0.
+      DATA(lv_last) = lv_dir+lv_len-1(1).
+      IF lv_last <> '\' AND lv_last <> '/'.
+        lv_dir = |{ lv_dir }\|.
+      ENDIF.
+    ENDIF.
+
     IF iv_split = abap_true.
       LOOP AT it_results INTO ls_result.
-        lv_filename = |CLONE_{ ls_result-pernr_src }_{ sy-datum }.{ iv_format }|.
+        lv_filename = |{ lv_dir }CLONE_{ ls_result-pernr_src }_{ sy-datum }.{ iv_format }|.
         CASE iv_format.
           WHEN gc_format_xlsx.
             generate_excel( EXPORTING it_data = lt_export_data iv_filename = lv_filename IMPORTING ev_filepath = ev_file_path ).
@@ -123,7 +139,7 @@ CLASS zcl_hr_cln_exporter IMPLEMENTATION.
         ENDCASE.
       ENDLOOP.
     ELSE.
-      lv_filename = |CLONE_EXPORT_{ sy-datum }_{ sy-uzeit }.{ iv_format }|.
+      lv_filename = |{ lv_dir }CLONE_EXPORT_{ sy-datum }_{ sy-uzeit }.{ iv_format }|.
       CASE iv_format.
         WHEN gc_format_xlsx.
           generate_excel( EXPORTING it_data = lt_export_data iv_filename = lv_filename IMPORTING ev_filepath = ev_file_path ).
@@ -224,14 +240,18 @@ CLASS zcl_hr_cln_exporter IMPLEMENTATION.
     DATA: lo_writer  TYPE REF TO cl_sxml_string_writer,
           lv_xstring TYPE xstring.
 
-    lo_writer = cl_sxml_string_writer=>create( type = if_sxml=>co_xt_json ).
+    TRY.
+        lo_writer = cl_sxml_string_writer=>create( type = if_sxml=>co_xt_json ).
 
-    CALL TRANSFORMATION id
-      SOURCE data = is_data
-      RESULT XML lo_writer.
+        CALL TRANSFORMATION id
+          SOURCE data = is_data
+          RESULT XML lo_writer.
 
-    lv_xstring = lo_writer->get_output( ).
-    rv_json = cl_abap_codepage=>convert_from( lv_xstring ).
+        lv_xstring = lo_writer->get_output( ).
+        rv_json = cl_abap_codepage=>convert_from( lv_xstring ).
+      CATCH cx_root.
+        rv_json = |\{"error": "Error de serialización JSON"\}|.
+    ENDTRY.
   ENDMETHOD.
 
   METHOD get_default_path.
