@@ -32,11 +32,24 @@ CLASS zcl_hr_cln_itype_0002 DEFINITION
 
   PROTECTED SECTION.
 
+    TYPES:
+      BEGIN OF gty_player,
+        vorna TYPE string,
+        nachn TYPE string,
+      END OF gty_player,
+      gtt_players TYPE STANDARD TABLE OF gty_player WITH DEFAULT KEY.
+
     METHODS clean_personal_ids
       IMPORTING
         is_params TYPE zhr_cln_params
       CHANGING
         cs_data   TYPE p0002.
+
+    METHODS assign_fictitious_name
+      IMPORTING
+        iv_pernr TYPE pernr_d
+      CHANGING
+        cs_data  TYPE p0002.
 
     METHODS generate_dummy_id
       IMPORTING
@@ -44,6 +57,15 @@ CLASS zcl_hr_cln_itype_0002 DEFINITION
         iv_original     TYPE string
       RETURNING
         VALUE(rv_dummy) TYPE string.
+
+  PRIVATE SECTION.
+
+    " Catálogo de futbolistas destacados de toda la historia
+    CLASS-DATA: gt_players TYPE gtt_players.
+
+    CLASS-METHODS get_players
+      RETURNING
+        VALUE(rt_players) TYPE gtt_players.
 
 ENDCLASS.
 
@@ -102,6 +124,14 @@ CLASS zcl_hr_cln_itype_0002 IMPLEMENTATION.
       ).
 
       clean_personal_ids( EXPORTING is_params = is_params CHANGING cs_data = ls_target ).
+
+      " Anonimizar con nombres de futbolistas históricos
+      IF is_params-anon_names = abap_true.
+        assign_fictitious_name(
+          EXPORTING iv_pernr = iv_pernr_tgt
+          CHANGING  cs_data  = ls_target
+        ).
+      ENDIF.
 
       IF is_params-simulation = abap_false.
 
@@ -186,6 +216,104 @@ CLASS zcl_hr_cln_itype_0002 IMPLEMENTATION.
 
   METHOD generate_dummy_id.
     rv_dummy = |{ iv_prefix }{ sy-datum+2(6) }{ sy-uzeit(4) }|.
+  ENDMETHOD.
+
+  METHOD assign_fictitious_name.
+    DATA: lv_index TYPE i.
+
+    IF gt_players IS INITIAL.
+      gt_players = get_players( ).
+    ENDIF.
+
+    " Asignación determinística: mismo PERNR → mismo futbolista
+    lv_index = ( iv_pernr MOD lines( gt_players ) ) + 1.
+
+    READ TABLE gt_players INTO DATA(ls_player) INDEX lv_index.
+    IF sy-subrc <> 0.
+      RETURN.
+    ENDIF.
+
+    " Nombre y apellido
+    ASSIGN COMPONENT 'VORNA' OF STRUCTURE cs_data TO FIELD-SYMBOL(<lv_vorna>).
+    IF sy-subrc = 0.
+      <lv_vorna> = ls_player-vorna.
+    ENDIF.
+
+    ASSIGN COMPONENT 'NACHN' OF STRUCTURE cs_data TO FIELD-SYMBOL(<lv_nachn>).
+    IF sy-subrc = 0.
+      <lv_nachn> = ls_player-nachn.
+    ENDIF.
+
+    " Nombre completo
+    ASSIGN COMPONENT 'CNAME' OF STRUCTURE cs_data TO FIELD-SYMBOL(<lv_cname>).
+    IF sy-subrc = 0.
+      <lv_cname> = |{ ls_player-vorna } { ls_player-nachn }|.
+    ENDIF.
+
+    " Apodo / nombre de pila
+    ASSIGN COMPONENT 'RUFNM' OF STRUCTURE cs_data TO FIELD-SYMBOL(<lv_rufnm>).
+    IF sy-subrc = 0.
+      <lv_rufnm> = ls_player-vorna.
+    ENDIF.
+
+    " Iniciales
+    ASSIGN COMPONENT 'INITS' OF STRUCTURE cs_data TO FIELD-SYMBOL(<lv_inits>).
+    IF sy-subrc = 0.
+      <lv_inits> = |{ ls_player-vorna(1) }{ ls_player-nachn(1) }|.
+    ENDIF.
+
+    IF go_logger IS BOUND.
+      go_logger->log_success(
+        iv_pernr_tgt = iv_pernr
+        iv_infty     = gc_infty
+        iv_msg       = |Nombre ficticio asignado: { ls_player-vorna } { ls_player-nachn }|
+      ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD get_players.
+    rt_players = VALUE #(
+      ( vorna = `Pelé`        nachn = `Nascimento`   )
+      ( vorna = `Diego`       nachn = `Maradona`     )
+      ( vorna = `Lionel`      nachn = `Messi`        )
+      ( vorna = `Cristiano`   nachn = `Ronaldo`      )
+      ( vorna = `Johan`       nachn = `Cruyff`       )
+      ( vorna = `Franz`       nachn = `Beckenbauer`  )
+      ( vorna = `Alfredo`     nachn = `Di Stéfano`   )
+      ( vorna = `Zinedine`    nachn = `Zidane`       )
+      ( vorna = `Ronaldo`     nachn = `Nazário`      )
+      ( vorna = `Ronaldinho`  nachn = `Gaúcho`       )
+      ( vorna = `George`      nachn = `Best`         )
+      ( vorna = `Michel`      nachn = `Platini`      )
+      ( vorna = `Garrincha`   nachn = `Dos Santos`   )
+      ( vorna = `Eusébio`     nachn = `Da Silva`     )
+      ( vorna = `Gerd`        nachn = `Müller`       )
+      ( vorna = `Paolo`       nachn = `Maldini`      )
+      ( vorna = `Roberto`     nachn = `Baggio`       )
+      ( vorna = `Romário`     nachn = `De Souza`     )
+      ( vorna = `Zico`        nachn = `Coimbra`      )
+      ( vorna = `Lev`         nachn = `Yashin`       )
+      ( vorna = `Ferenc`      nachn = `Puskás`       )
+      ( vorna = `Bobby`       nachn = `Charlton`     )
+      ( vorna = `Andrés`      nachn = `Iniesta`      )
+      ( vorna = `Xavi`        nachn = `Hernández`    )
+      ( vorna = `Iker`        nachn = `Casillas`     )
+      ( vorna = `Thierry`     nachn = `Henry`        )
+      ( vorna = `Kylian`      nachn = `Mbappé`       )
+      ( vorna = `Neymar`      nachn = `Da Silva`     )
+      ( vorna = `Luka`        nachn = `Modric`       )
+      ( vorna = `Andrea`      nachn = `Pirlo`        )
+      ( vorna = `Iván`        nachn = `Zamorano`     )
+      ( vorna = `Marcelo`     nachn = `Salas`        )
+      ( vorna = `Elías`       nachn = `Figueroa`     )
+      ( vorna = `Carlos`      nachn = `Valderrama`   )
+      ( vorna = `René`        nachn = `Higuita`      )
+      ( vorna = `Radamel`     nachn = `Falcao`       )
+      ( vorna = `Teófilo`     nachn = `Cubillas`     )
+      ( vorna = `Enzo`        nachn = `Francescoli`  )
+      ( vorna = `Hugo`        nachn = `Sánchez`      )
+      ( vorna = `Kaká`        nachn = `Leite`        )
+    ).
   ENDMETHOD.
 
 ENDCLASS.

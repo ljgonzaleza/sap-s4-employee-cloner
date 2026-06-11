@@ -35,6 +35,7 @@ CLASS zcl_hr_cln_orchestrator DEFINITION PUBLIC CREATE PUBLIC.
         itype_to     TYPE infty,
         country      TYPE land1,
         incl_tm      TYPE abap_bool,
+        anon_names   TYPE abap_bool,
         export_local TYPE abap_bool,
         exp_path     TYPE localfile,
         exp_format   TYPE char4,

@@ -120,6 +120,12 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_ANON</KEY>
+     <ENTRY>Nombres ficticios (futbolistas)</ENTRY>
+     <LENGTH>35</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_SHIFT</KEY>
      <ENTRY>Desplazamiento fechas (días)</ENTRY>
      <LENGTH>30</LENGTH>

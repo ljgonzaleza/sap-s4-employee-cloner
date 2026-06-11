@@ -51,6 +51,7 @@ SELECTION-SCREEN BEGIN OF BLOCK b03 WITH FRAME TITLE TEXT-003.
     p_hist  AS CHECKBOX DEFAULT '',
     p_simul AS CHECKBOX DEFAULT 'X',
     p_overw AS CHECKBOX DEFAULT '',
+    p_anon  AS CHECKBOX DEFAULT 'X',
     p_shift TYPE i DEFAULT 0.
 SELECTION-SCREEN END OF BLOCK b03.
 
@@ -135,6 +136,7 @@ FORM execute_clone.
     itype_to     = p_ito
     country      = p_ctry
     incl_tm      = p_incltm
+    anon_names   = p_anon
     export_local = p_exp
     exp_format   = p_format
     exp_path     = p_path
